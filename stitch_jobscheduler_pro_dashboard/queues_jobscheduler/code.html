@@ -1,0 +1,298 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>JobScheduler - Queues</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;600;700&amp;family=Inter:wght@400;500;600&amp;family=JetBrains+Mono:wght@500&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "error": "#ffb4ab",
+                        "primary-container": "#8083ff",
+                        "error-container": "#93000a",
+                        "surface-container": "#171f33",
+                        "on-tertiary-fixed-variant": "#703700",
+                        "primary-fixed": "#e1e0ff",
+                        "surface-container-highest": "#2d3449",
+                        "surface-container-high": "#222a3d",
+                        "on-tertiary-fixed": "#301400",
+                        "tertiary-fixed-dim": "#ffb783",
+                        "outline-variant": "#464554",
+                        "on-primary-fixed": "#07006c",
+                        "inverse-surface": "#dae2fd",
+                        "surface-container-low": "#131b2e",
+                        "secondary-fixed": "#c9e6ff",
+                        "surface": "#0b1326",
+                        "on-secondary-fixed": "#001e2f",
+                        "secondary-container": "#00a2e6",
+                        "on-secondary-fixed-variant": "#004c6e",
+                        "surface-container-lowest": "#060e20",
+                        "secondary": "#89ceff",
+                        "secondary-fixed-dim": "#89ceff",
+                        "surface-tint": "#c0c1ff",
+                        "on-primary-container": "#0d0096",
+                        "primary": "#c0c1ff",
+                        "on-tertiary-container": "#452000",
+                        "surface-bright": "#31394d",
+                        "inverse-primary": "#494bd6",
+                        "background": "#0b1326",
+                        "tertiary-fixed": "#ffdcc5",
+                        "on-primary-fixed-variant": "#2f2ebe",
+                        "on-secondary": "#00344d",
+                        "on-surface": "#dae2fd",
+                        "on-surface-variant": "#c7c4d7",
+                        "outline": "#908fa0",
+                        "primary-fixed-dim": "#c0c1ff",
+                        "tertiary-container": "#d97721",
+                        "on-background": "#dae2fd",
+                        "surface-variant": "#2d3449",
+                        "inverse-on-surface": "#283044",
+                        "tertiary": "#ffb783",
+                        "on-tertiary": "#4f2500",
+                        "on-error": "#690005",
+                        "on-primary": "#1000a9",
+                        "surface-dim": "#0b1326",
+                        "on-error-container": "#ffdad6",
+                        "on-secondary-container": "#00344e"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.125rem",
+                        "lg": "0.25rem",
+                        "xl": "0.5rem",
+                        "full": "0.75rem"
+                    },
+                    "spacing": {
+                        "gutter": "16px",
+                        "container_margin": "24px",
+                        "base_grid": "4px",
+                        "sidebar_width": "260px",
+                        "sidebar_collapsed": "64px",
+                        "section_gap": "32px"
+                    },
+                    "fontFamily": {
+                        "headline-md": ["Geist"],
+                        "title-sm": ["Geist"],
+                        "display-lg": ["Geist"],
+                        "body-sm": ["Inter"],
+                        "headline-lg-mobile": ["Geist"],
+                        "mono-label": ["JetBrains Mono"],
+                        "body-md": ["Inter"]
+                    },
+                    "fontSize": {
+                        "headline-md": ["24px", { "lineHeight": "32px", "letterSpacing": "-0.01em", "fontWeight": "600" }],
+                        "title-sm": ["18px", { "lineHeight": "24px", "fontWeight": "600" }],
+                        "display-lg": ["32px", { "lineHeight": "40px", "letterSpacing": "-0.02em", "fontWeight": "700" }],
+                        "body-sm": ["12px", { "lineHeight": "16px", "fontWeight": "400" }],
+                        "headline-lg-mobile": ["24px", { "lineHeight": "32px", "fontWeight": "700" }],
+                        "mono-label": ["12px", { "lineHeight": "16px", "letterSpacing": "0.02em", "fontWeight": "500" }],
+                        "body-md": ["14px", { "lineHeight": "20px", "fontWeight": "400" }]
+                    }
+                },
+            },
+        }
+    </script>
+<style>
+        body { background-color: #020617; color: #dae2fd; }
+        .table-row-hover:hover { background-color: #1E293B; }
+        .border-base { border-color: #1E293B; }
+        .input-focus:focus { border-color: #c0c1ff; box-shadow: 0 0 0 2px rgba(192, 193, 255, 0.2); }
+        .card-bg { background-color: #0F172A; }
+    </style>
+</head>
+<body class="font-body-md antialiased overflow-x-hidden">
+<!-- SideNavBar -->
+<nav class="fixed left-0 top-0 h-screen w-sidebar_width bg-surface-container dark:bg-surface-container border-r border-outline-variant flex flex-col py-container_margin px-4 z-50">
+<div class="flex items-center gap-3 mb-8 px-2">
+<span class="material-symbols-outlined text-primary text-[32px]">schedule</span>
+<div>
+<h1 class="font-headline-md text-headline-md font-bold text-primary dark:text-primary">JobScheduler</h1>
+<p class="font-body-sm text-body-sm text-on-surface-variant">Distributed Engine</p>
+</div>
+</div>
+<ul class="flex flex-col gap-2 flex-grow">
+<li><a class="flex items-center gap-3 px-3 py-2 rounded-DEFAULT text-on-surface-variant hover:bg-surface-container-highest transition-colors duration-200 cursor-pointer active:scale-95 font-body-md text-body-md" href="#"><span class="material-symbols-outlined" data-icon="dashboard">dashboard</span> Dashboard</a></li>
+<li><a class="flex items-center gap-3 px-3 py-2 rounded-DEFAULT text-on-surface-variant hover:bg-surface-container-highest transition-colors duration-200 cursor-pointer active:scale-95 font-body-md text-body-md" href="#"><span class="material-symbols-outlined" data-icon="folder">folder</span> Projects</a></li>
+<li><a class="flex items-center gap-3 px-3 py-2 rounded-DEFAULT bg-primary-container text-on-primary-container font-semibold transition-colors duration-200 cursor-pointer active:scale-95 font-body-md text-body-md" href="#"><span class="material-symbols-outlined" data-icon="queue">queue</span> Queues</a></li>
+<li><a class="flex items-center gap-3 px-3 py-2 rounded-DEFAULT text-on-surface-variant hover:bg-surface-container-highest transition-colors duration-200 cursor-pointer active:scale-95 font-body-md text-body-md" href="#"><span class="material-symbols-outlined" data-icon="work">work</span> Jobs</a></li>
+<li><a class="flex items-center gap-3 px-3 py-2 rounded-DEFAULT text-on-surface-variant hover:bg-surface-container-highest transition-colors duration-200 cursor-pointer active:scale-95 font-body-md text-body-md" href="#"><span class="material-symbols-outlined" data-icon="engineering">engineering</span> Workers</a></li>
+<li><a class="flex items-center gap-3 px-3 py-2 rounded-DEFAULT text-on-surface-variant hover:bg-surface-container-highest transition-colors duration-200 cursor-pointer active:scale-95 font-body-md text-body-md" href="#"><span class="material-symbols-outlined" data-icon="error">error</span> DLQ</a></li>
+<li><a class="flex items-center gap-3 px-3 py-2 rounded-DEFAULT text-on-surface-variant hover:bg-surface-container-highest transition-colors duration-200 cursor-pointer active:scale-95 font-body-md text-body-md" href="#"><span class="material-symbols-outlined" data-icon="analytics">analytics</span> Metrics</a></li>
+</ul>
+<div class="mt-auto flex flex-col gap-2">
+<a class="flex items-center gap-3 px-3 py-2 rounded-DEFAULT text-on-surface-variant hover:bg-surface-container-highest transition-colors duration-200 cursor-pointer active:scale-95 font-body-md text-body-md" href="#"><span class="material-symbols-outlined" data-icon="settings">settings</span> Settings</a>
+<a class="flex items-center gap-3 px-3 py-2 rounded-DEFAULT text-on-surface-variant hover:bg-surface-container-highest transition-colors duration-200 cursor-pointer active:scale-95 font-body-md text-body-md" href="#"><span class="material-symbols-outlined" data-icon="logout">logout</span> Logout</a>
+</div>
+</nav>
+<!-- TopNavBar -->
+<header class="fixed top-0 right-0 w-[calc(100%-theme(spacing.sidebar_width))] h-16 bg-surface/80 dark:bg-surface/80 backdrop-blur-md border-b border-outline-variant flex justify-between items-center px-container_margin z-40">
+<div class="flex items-center gap-4">
+<h2 class="font-title-sm text-title-sm text-primary dark:text-primary hidden">JobScheduler</h2>
+<nav class="flex gap-6">
+<a class="font-title-sm text-title-sm text-primary border-b-2 border-primary pb-1 cursor-pointer hover:text-primary transition-colors" href="#">Organization Alpha</a>
+</nav>
+</div>
+<div class="flex items-center gap-4 text-primary dark:text-primary">
+<button class="hover:text-primary transition-colors cursor-pointer"><span class="material-symbols-outlined" data-icon="notifications">notifications</span></button>
+<button class="hover:text-primary transition-colors cursor-pointer"><span class="material-symbols-outlined" data-icon="account_circle">account_circle</span></button>
+</div>
+</header>
+<!-- Main Content -->
+<main class="ml-sidebar_width mt-16 p-container_margin min-h-screen">
+<!-- Header Section -->
+<div class="flex justify-between items-center mb-8">
+<div>
+<h2 class="font-display-lg text-display-lg text-on-surface">Queues</h2>
+<p class="font-body-md text-body-md text-on-surface-variant mt-1">Manage processing queues for Organization Alpha.</p>
+</div>
+<button class="bg-[#494bd6] hover:bg-[#8083ff] text-white px-4 py-2 rounded-DEFAULT font-title-sm text-title-sm flex items-center gap-2 transition-colors cursor-pointer active:scale-95">
+<span class="material-symbols-outlined text-[20px]">add</span> Create Queue
+            </button>
+</div>
+<div class="grid grid-cols-1 xl:grid-cols-3 gap-gutter">
+<!-- Queues Table (Spans 2 columns on XL) -->
+<div class="xl:col-span-2 card-bg border border-base rounded-lg overflow-hidden flex flex-col h-[calc(100vh-200px)]">
+<div class="px-4 py-3 border-b border-base flex justify-between items-center">
+<h3 class="font-title-sm text-title-sm text-on-surface">Active Queues</h3>
+<div class="relative">
+<span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-outline text-[18px]">search</span>
+<input class="bg-[#020617] border border-[#334155] rounded-DEFAULT pl-9 pr-3 py-1.5 text-body-sm font-body-sm text-on-surface w-64 input-focus outline-none placeholder:text-outline" placeholder="Search queues..." type="text"/>
+</div>
+</div>
+<div class="overflow-auto flex-grow">
+<table class="w-full text-left border-collapse">
+<thead class="sticky top-0 bg-[#0F172A] z-10 border-b border-base">
+<tr>
+<th class="font-mono-label text-mono-label text-[#94A3B8] uppercase px-4 py-3 font-medium">Queue Name</th>
+<th class="font-mono-label text-mono-label text-[#94A3B8] uppercase px-4 py-3 font-medium">Status</th>
+<th class="font-mono-label text-mono-label text-[#94A3B8] uppercase px-4 py-3 font-medium">Priority</th>
+<th class="font-mono-label text-mono-label text-[#94A3B8] uppercase px-4 py-3 font-medium text-right">Waiting</th>
+<th class="font-mono-label text-mono-label text-[#94A3B8] uppercase px-4 py-3 font-medium text-right">Running</th>
+<th class="font-mono-label text-mono-label text-[#94A3B8] uppercase px-4 py-3 font-medium text-right">Failed</th>
+<th class="font-mono-label text-mono-label text-[#94A3B8] uppercase px-4 py-3 font-medium text-center">Actions</th>
+</tr>
+</thead>
+<tbody class="divide-y divide-base font-body-sm text-body-sm text-on-surface">
+<!-- Row 1 -->
+<tr class="table-row-hover transition-colors">
+<td class="px-4 py-3 font-mono-label">ingest-events-prod</td>
+<td class="px-4 py-3">
+<span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-green-900/30 text-green-400 border border-green-800/50">Active</span>
+</td>
+<td class="px-4 py-3">
+<span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-red-900/30 text-red-400 border border-red-800/50">High</span>
+</td>
+<td class="px-4 py-3 text-right font-mono-label">12,405</td>
+<td class="px-4 py-3 text-right font-mono-label text-primary">32</td>
+<td class="px-4 py-3 text-right font-mono-label text-error">12</td>
+<td class="px-4 py-3 text-center">
+<div class="flex justify-center gap-2">
+<button class="text-outline hover:text-on-surface transition-colors"><span class="material-symbols-outlined text-[18px]">pause</span></button>
+<button class="text-outline hover:text-on-surface transition-colors"><span class="material-symbols-outlined text-[18px]">edit</span></button>
+<button class="text-outline hover:text-error transition-colors"><span class="material-symbols-outlined text-[18px]">delete</span></button>
+</div>
+</td>
+</tr>
+<!-- Row 2 -->
+<tr class="table-row-hover transition-colors">
+<td class="px-4 py-3 font-mono-label">email-notifications</td>
+<td class="px-4 py-3">
+<span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-green-900/30 text-green-400 border border-green-800/50">Active</span>
+</td>
+<td class="px-4 py-3">
+<span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-yellow-900/30 text-yellow-400 border border-yellow-800/50">Med</span>
+</td>
+<td class="px-4 py-3 text-right font-mono-label">45</td>
+<td class="px-4 py-3 text-right font-mono-label text-primary">8</td>
+<td class="px-4 py-3 text-right font-mono-label">0</td>
+<td class="px-4 py-3 text-center">
+<div class="flex justify-center gap-2">
+<button class="text-outline hover:text-on-surface transition-colors"><span class="material-symbols-outlined text-[18px]">pause</span></button>
+<button class="text-outline hover:text-on-surface transition-colors"><span class="material-symbols-outlined text-[18px]">edit</span></button>
+<button class="text-outline hover:text-error transition-colors"><span class="material-symbols-outlined text-[18px]">delete</span></button>
+</div>
+</td>
+</tr>
+<!-- Row 3 -->
+<tr class="table-row-hover transition-colors">
+<td class="px-4 py-3 font-mono-label">daily-reports-gen</td>
+<td class="px-4 py-3">
+<span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-slate-800 text-slate-300 border border-slate-700">Paused</span>
+</td>
+<td class="px-4 py-3">
+<span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-blue-900/30 text-blue-400 border border-blue-800/50">Low</span>
+</td>
+<td class="px-4 py-3 text-right font-mono-label">850</td>
+<td class="px-4 py-3 text-right font-mono-label">0</td>
+<td class="px-4 py-3 text-right font-mono-label">0</td>
+<td class="px-4 py-3 text-center">
+<div class="flex justify-center gap-2">
+<button class="text-outline hover:text-on-surface transition-colors"><span class="material-symbols-outlined text-[18px]">play_arrow</span></button>
+<button class="text-outline hover:text-on-surface transition-colors"><span class="material-symbols-outlined text-[18px]">edit</span></button>
+<button class="text-outline hover:text-error transition-colors"><span class="material-symbols-outlined text-[18px]">delete</span></button>
+</div>
+</td>
+</tr>
+</tbody>
+</table>
+</div>
+</div>
+<!-- Queue Settings Sidebar/Form -->
+<div class="card-bg border border-base rounded-lg p-4 flex flex-col h-[calc(100vh-200px)] overflow-y-auto">
+<h3 class="font-title-sm text-title-sm text-on-surface border-b border-base pb-3 mb-4 flex items-center gap-2">
+<span class="material-symbols-outlined text-[20px] text-primary">settings_applications</span>
+                    Queue Configuration
+                </h3>
+<p class="font-body-sm text-body-sm text-outline mb-6">Select a queue from the table to view or edit its specific configuration details.</p>
+<form class="space-y-5 flex-grow">
+<!-- Queue Name (Readonly example) -->
+<div>
+<label class="block font-mono-label text-mono-label text-on-surface-variant mb-1 uppercase">Selected Queue</label>
+<input class="w-full bg-[#020617] border border-[#334155] rounded-DEFAULT px-3 py-2 text-body-sm font-body-sm text-on-surface opacity-70 cursor-not-allowed" readonly="" type="text" value="ingest-events-prod"/>
+</div>
+<div class="h-px bg-base w-full my-2"></div>
+<!-- Retry Strategy -->
+<div>
+<label class="block font-mono-label text-mono-label text-on-surface-variant mb-1 uppercase">Retry Strategy</label>
+<select class="w-full bg-[#020617] border border-[#334155] rounded-DEFAULT px-3 py-2 text-body-sm font-body-sm text-on-surface input-focus outline-none appearance-none">
+<option value="exponential">Exponential Backoff</option>
+<option value="linear">Linear Backoff</option>
+<option value="fixed">Fixed Interval</option>
+<option value="none">No Retries</option>
+</select>
+</div>
+<!-- Max Retries & Concurrency -->
+<div class="grid grid-cols-2 gap-4">
+<div>
+<label class="block font-mono-label text-mono-label text-on-surface-variant mb-1 uppercase">Max Retries</label>
+<input class="w-full bg-[#020617] border border-[#334155] rounded-DEFAULT px-3 py-2 text-body-sm font-body-sm text-on-surface input-focus outline-none" type="number" value="3"/>
+</div>
+<div>
+<label class="block font-mono-label text-mono-label text-on-surface-variant mb-1 uppercase">Concurrency</label>
+<input class="w-full bg-[#020617] border border-[#334155] rounded-DEFAULT px-3 py-2 text-body-sm font-body-sm text-on-surface input-focus outline-none" type="number" value="32"/>
+</div>
+</div>
+<!-- Priority -->
+<div>
+<label class="block font-mono-label text-mono-label text-on-surface-variant mb-2 uppercase">Base Priority</label>
+<div class="flex gap-2">
+<button class="flex-1 bg-[#1E293B] border border-[#334155] text-on-surface py-1.5 rounded-DEFAULT text-body-sm font-body-sm hover:bg-[#334155] transition-colors" type="button">Low</button>
+<button class="flex-1 bg-[#1E293B] border border-[#334155] text-on-surface py-1.5 rounded-DEFAULT text-body-sm font-body-sm hover:bg-[#334155] transition-colors" type="button">Med</button>
+<button class="flex-1 bg-primary-container/20 border border-primary text-primary py-1.5 rounded-DEFAULT text-body-sm font-body-sm" type="button">High</button>
+</div>
+</div>
+</form>
+<div class="mt-6 pt-4 border-t border-base flex justify-end gap-3">
+<button class="px-4 py-2 rounded-DEFAULT border border-[#334155] text-[#94A3B8] font-body-sm text-body-sm hover:bg-[#1E293B] transition-colors cursor-pointer">Discard</button>
+<button class="px-4 py-2 rounded-DEFAULT bg-[#494bd6] text-white font-body-sm text-body-sm hover:bg-[#8083ff] transition-colors cursor-pointer">Save Changes</button>
+</div>
+</div>
+</div>
+</main>
+</body></html>

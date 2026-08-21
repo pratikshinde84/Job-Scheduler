@@ -1,0 +1,360 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Job Details - JobScheduler</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "error": "#ffb4ab",
+                        "primary-container": "#8083ff",
+                        "error-container": "#93000a",
+                        "surface-container": "#171f33",
+                        "on-tertiary-fixed-variant": "#703700",
+                        "primary-fixed": "#e1e0ff",
+                        "surface-container-highest": "#2d3449",
+                        "surface-container-high": "#222a3d",
+                        "on-tertiary-fixed": "#301400",
+                        "tertiary-fixed-dim": "#ffb783",
+                        "outline-variant": "#464554",
+                        "on-primary-fixed": "#07006c",
+                        "inverse-surface": "#dae2fd",
+                        "surface-container-low": "#131b2e",
+                        "secondary-fixed": "#c9e6ff",
+                        "surface": "#0b1326",
+                        "on-secondary-fixed": "#001e2f",
+                        "secondary-container": "#00a2e6",
+                        "on-secondary-fixed-variant": "#004c6e",
+                        "surface-container-lowest": "#060e20",
+                        "secondary": "#89ceff",
+                        "secondary-fixed-dim": "#89ceff",
+                        "surface-tint": "#c0c1ff",
+                        "on-primary-container": "#0d0096",
+                        "primary": "#c0c1ff",
+                        "on-tertiary-container": "#452000",
+                        "surface-bright": "#31394d",
+                        "inverse-primary": "#494bd6",
+                        "background": "#0b1326",
+                        "tertiary-fixed": "#ffdcc5",
+                        "on-primary-fixed-variant": "#2f2ebe",
+                        "on-secondary": "#00344d",
+                        "on-surface": "#dae2fd",
+                        "on-surface-variant": "#c7c4d7",
+                        "outline": "#908fa0",
+                        "primary-fixed-dim": "#c0c1ff",
+                        "tertiary-container": "#d97721",
+                        "on-background": "#dae2fd",
+                        "surface-variant": "#2d3449",
+                        "inverse-on-surface": "#283044",
+                        "tertiary": "#ffb783",
+                        "on-tertiary": "#4f2500",
+                        "on-error": "#690005",
+                        "on-primary": "#1000a9",
+                        "surface-dim": "#0b1326",
+                        "on-error-container": "#ffdad6",
+                        "on-secondary-container": "#00344e"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.125rem",
+                        "lg": "0.25rem",
+                        "xl": "0.5rem",
+                        "full": "0.75rem"
+                    },
+                    "spacing": {
+                        "gutter": "16px",
+                        "container_margin": "24px",
+                        "base_grid": "4px",
+                        "sidebar_width": "260px",
+                        "sidebar_collapsed": "64px",
+                        "section_gap": "32px"
+                    },
+                    "fontFamily": {
+                        "headline-md": ["Geist", "sans-serif"],
+                        "title-sm": ["Geist", "sans-serif"],
+                        "display-lg": ["Geist", "sans-serif"],
+                        "body-sm": ["Inter", "sans-serif"],
+                        "headline-lg-mobile": ["Geist", "sans-serif"],
+                        "mono-label": ["JetBrains Mono", "monospace"],
+                        "body-md": ["Inter", "sans-serif"]
+                    },
+                    "fontSize": {
+                        "headline-md": ["24px", { "lineHeight": "32px", "letterSpacing": "-0.01em", "fontWeight": "600" }],
+                        "title-sm": ["18px", { "lineHeight": "24px", "fontWeight": "600" }],
+                        "display-lg": ["32px", { "lineHeight": "40px", "letterSpacing": "-0.02em", "fontWeight": "700" }],
+                        "body-sm": ["12px", { "lineHeight": "16px", "fontWeight": "400" }],
+                        "headline-lg-mobile": ["24px", { "lineHeight": "32px", "fontWeight": "700" }],
+                        "mono-label": ["12px", { "lineHeight": "16px", "letterSpacing": "0.02em", "fontWeight": "500" }],
+                        "body-md": ["14px", { "lineHeight": "20px", "fontWeight": "400" }]
+                    }
+                },
+            },
+        }
+    </script>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@600;700&amp;family=Inter:wght@400&amp;family=JetBrains+Mono:wght@500&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<style>
+        body { @apply bg-background text-on-background font-body-md; }
+        .material-symbols-outlined { font-variation-settings: 'FILL' 0; }
+        .glass-panel { @apply bg-surface/80 backdrop-blur-md border border-outline-variant; }
+    </style>
+</head>
+<body class="antialiased min-h-screen flex">
+<!-- SideNavBar -->
+<nav class="fixed left-0 top-0 h-screen w-sidebar_width bg-surface-container dark:bg-surface-container border-r border-outline-variant flex flex-col py-container_margin px-4 z-50 transition-all duration-300 md:translate-x-0 -translate-x-full" id="sidebar">
+<div class="flex items-center gap-3 px-3 mb-8">
+<span class="material-symbols-outlined text-3xl text-primary dark:text-primary">schedule</span>
+<div>
+<h1 class="font-headline-md text-headline-md font-bold text-primary dark:text-primary tracking-tight leading-none">JobScheduler</h1>
+<p class="font-mono-label text-mono-label text-on-surface-variant uppercase mt-1">Distributed Engine</p>
+</div>
+</div>
+<ul class="flex flex-col gap-1 flex-1 font-body-md text-body-md">
+<li><a class="flex items-center gap-3 px-3 py-2 rounded text-on-surface-variant hover:bg-surface-container-highest transition-colors duration-200 cursor-pointer active:scale-95" href="#"><span class="material-symbols-outlined">dashboard</span> Dashboard</a></li>
+<li><a class="flex items-center gap-3 px-3 py-2 rounded text-on-surface-variant hover:bg-surface-container-highest transition-colors duration-200 cursor-pointer active:scale-95" href="#"><span class="material-symbols-outlined">folder</span> Projects</a></li>
+<li><a class="flex items-center gap-3 px-3 py-2 rounded text-on-surface-variant hover:bg-surface-container-highest transition-colors duration-200 cursor-pointer active:scale-95" href="#"><span class="material-symbols-outlined">queue</span> Queues</a></li>
+<li><a class="flex items-center gap-3 px-3 py-2 rounded bg-primary-container text-on-primary-container font-semibold cursor-pointer active:scale-95" href="#"><span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">work</span> Jobs</a></li>
+<li><a class="flex items-center gap-3 px-3 py-2 rounded text-on-surface-variant hover:bg-surface-container-highest transition-colors duration-200 cursor-pointer active:scale-95" href="#"><span class="material-symbols-outlined">engineering</span> Workers</a></li>
+<li><a class="flex items-center gap-3 px-3 py-2 rounded text-on-surface-variant hover:bg-surface-container-highest transition-colors duration-200 cursor-pointer active:scale-95" href="#"><span class="material-symbols-outlined">error</span> DLQ</a></li>
+<li><a class="flex items-center gap-3 px-3 py-2 rounded text-on-surface-variant hover:bg-surface-container-highest transition-colors duration-200 cursor-pointer active:scale-95" href="#"><span class="material-symbols-outlined">analytics</span> Metrics</a></li>
+</ul>
+<div class="mt-auto flex flex-col gap-1 font-body-md text-body-md pt-4 border-t border-outline-variant">
+<a class="flex items-center gap-3 px-3 py-2 rounded text-on-surface-variant hover:bg-surface-container-highest transition-colors duration-200 cursor-pointer active:scale-95" href="#"><span class="material-symbols-outlined">settings</span> Settings</a>
+<a class="flex items-center gap-3 px-3 py-2 rounded text-on-surface-variant hover:bg-surface-container-highest transition-colors duration-200 cursor-pointer active:scale-95" href="#"><span class="material-symbols-outlined">logout</span> Logout</a>
+</div>
+</nav>
+<!-- Main Content Wrapper -->
+<div class="flex-1 flex flex-col ml-0 md:ml-[260px] min-w-0 transition-all duration-300">
+<!-- TopNavBar -->
+<header class="sticky top-0 w-full h-16 bg-surface/80 dark:bg-surface/80 backdrop-blur-md border-b border-outline-variant flex justify-between items-center px-container_margin z-40">
+<div class="flex items-center gap-4">
+<button class="md:hidden text-on-surface-variant" onclick="document.getElementById('sidebar').classList.toggle('-translate-x-full')">
+<span class="material-symbols-outlined">menu</span>
+</button>
+<nav aria-label="Breadcrumb" class="hidden sm:flex">
+<ol class="flex items-center space-x-2 text-body-sm font-body-sm text-on-surface-variant">
+<li><a class="hover:text-primary transition-colors" href="#">Jobs</a></li>
+<li><span class="material-symbols-outlined text-[16px]">chevron_right</span></li>
+<li aria-current="page" class="text-on-surface font-semibold">JOB-12345</li>
+</ol>
+</nav>
+</div>
+<div class="flex items-center gap-6">
+<div class="text-on-surface-variant font-title-sm text-title-sm cursor-pointer hover:text-primary transition-colors border-b-2 border-transparent hover:border-primary">Organization Alpha</div>
+<div class="flex items-center gap-4 text-on-surface-variant">
+<button class="cursor-pointer hover:text-primary transition-colors"><span class="material-symbols-outlined">notifications</span></button>
+<button class="cursor-pointer hover:text-primary transition-colors"><span class="material-symbols-outlined">account_circle</span></button>
+</div>
+</div>
+</header>
+<!-- Page Canvas -->
+<main class="flex-1 p-container_margin overflow-x-hidden">
+<!-- Header & Ribbon -->
+<div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-section_gap">
+<div>
+<h2 class="font-display-lg text-display-lg text-on-surface flex items-center gap-3">
+                        JOB-12345 
+                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-mono-label font-mono-label bg-secondary-container/10 text-secondary-container border border-secondary-container/20">
+                            RUNNING
+                        </span>
+</h2>
+<p class="text-on-surface-variant mt-1">Data Pipeline ETL Process • Priority: High</p>
+</div>
+<div class="flex items-center gap-3">
+<button class="px-4 py-2 rounded bg-surface-container border border-outline-variant text-on-surface hover:bg-surface-container-highest transition-colors font-mono-label text-mono-label flex items-center gap-2">
+<span class="material-symbols-outlined text-[18px]">replay</span> RETRY
+                    </button>
+<button class="px-4 py-2 rounded bg-surface-container border border-error/50 text-error hover:bg-error/10 transition-colors font-mono-label text-mono-label flex items-center gap-2">
+<span class="material-symbols-outlined text-[18px]">cancel</span> CANCEL
+                    </button>
+<button class="px-4 py-2 rounded bg-primary text-on-primary hover:bg-primary-container transition-colors font-mono-label text-mono-label flex items-center gap-2 font-bold shadow-lg shadow-primary/20">
+<span class="material-symbols-outlined text-[18px]">terminal</span> VIEW LOGS
+                    </button>
+</div>
+</div>
+<div class="grid grid-cols-1 xl:grid-cols-3 gap-gutter">
+<!-- Left Column (Wider) -->
+<div class="xl:col-span-2 flex flex-col gap-gutter">
+<!-- Section 1: Timeline -->
+<section class="bg-surface-container-low border border-outline-variant rounded-lg p-4">
+<h3 class="font-title-sm text-title-sm mb-4 border-b border-outline-variant pb-2">Lifecycle</h3>
+<div class="relative pt-2 pb-6 px-4">
+<!-- Line -->
+<div class="absolute top-6 left-8 right-8 h-0.5 bg-outline-variant z-0"></div>
+<div class="absolute top-6 left-8 w-[75%] h-0.5 bg-secondary-container z-0"></div>
+<!-- Nodes -->
+<div class="relative z-10 flex justify-between">
+<div class="flex flex-col items-center">
+<div class="w-8 h-8 rounded-full bg-secondary-container text-on-secondary-container flex items-center justify-center mb-2 shadow-lg shadow-secondary-container/20">
+<span class="material-symbols-outlined text-[16px]">check</span>
+</div>
+<span class="font-mono-label text-mono-label text-on-surface">QUEUED</span>
+<span class="text-[10px] text-on-surface-variant">10:00:01</span>
+</div>
+<div class="flex flex-col items-center">
+<div class="w-8 h-8 rounded-full bg-secondary-container text-on-secondary-container flex items-center justify-center mb-2 shadow-lg shadow-secondary-container/20">
+<span class="material-symbols-outlined text-[16px]">check</span>
+</div>
+<span class="font-mono-label text-mono-label text-on-surface">SCHEDULED</span>
+<span class="text-[10px] text-on-surface-variant">10:00:05</span>
+</div>
+<div class="flex flex-col items-center">
+<div class="w-8 h-8 rounded-full bg-secondary-container text-on-secondary-container flex items-center justify-center mb-2 shadow-lg shadow-secondary-container/20">
+<span class="material-symbols-outlined text-[16px]">check</span>
+</div>
+<span class="font-mono-label text-mono-label text-on-surface">CLAIMED</span>
+<span class="text-[10px] text-on-surface-variant">10:00:12</span>
+</div>
+<div class="flex flex-col items-center">
+<div class="w-8 h-8 rounded-full bg-surface border-2 border-secondary-container text-secondary-container flex items-center justify-center mb-2 animate-pulse">
+<span class="material-symbols-outlined text-[16px]">sync</span>
+</div>
+<span class="font-mono-label text-mono-label text-secondary-container">RUNNING</span>
+<span class="text-[10px] text-secondary-container">10:00:15</span>
+</div>
+<div class="flex flex-col items-center opacity-50">
+<div class="w-8 h-8 rounded-full bg-surface border-2 border-outline-variant text-outline-variant flex items-center justify-center mb-2">
+<span class="material-symbols-outlined text-[16px]">done_all</span>
+</div>
+<span class="font-mono-label text-mono-label text-on-surface-variant">COMPLETED</span>
+<span class="text-[10px] text-transparent">-</span>
+</div>
+</div>
+</div>
+</section>
+<!-- Section 4: Execution History -->
+<section class="bg-surface-container-low border border-outline-variant rounded-lg overflow-hidden">
+<div class="p-4 border-b border-outline-variant bg-surface-container/50">
+<h3 class="font-title-sm text-title-sm">Execution History</h3>
+</div>
+<div class="overflow-x-auto">
+<table class="w-full text-left font-body-sm text-body-sm">
+<thead>
+<tr class="font-mono-label text-mono-label text-on-surface-variant bg-surface-container-lowest border-b border-outline-variant">
+<th class="px-4 py-3">ATTEMPT</th>
+<th class="px-4 py-3">WORKER_ID</th>
+<th class="px-4 py-3">DURATION</th>
+<th class="px-4 py-3">STATUS</th>
+<th class="px-4 py-3">MESSAGE</th>
+</tr>
+</thead>
+<tbody class="divide-y divide-outline-variant">
+<tr class="hover:bg-surface-container transition-colors">
+<td class="px-4 py-3 font-mono-label text-on-surface">#2 (Current)</td>
+<td class="px-4 py-3 font-mono-label text-primary">wrk-99x-eu-west</td>
+<td class="px-4 py-3 text-on-surface-variant">00:04:12s</td>
+<td class="px-4 py-3">
+<span class="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-mono-label bg-secondary-container/10 text-secondary-container border border-secondary-container/20">RUNNING</span>
+</td>
+<td class="px-4 py-3 text-on-surface-variant truncate max-w-[200px]">-</td>
+</tr>
+<tr class="hover:bg-surface-container transition-colors opacity-80">
+<td class="px-4 py-3 font-mono-label text-on-surface">#1</td>
+<td class="px-4 py-3 font-mono-label text-primary">wrk-42a-us-east</td>
+<td class="px-4 py-3 text-on-surface-variant">00:15:33s</td>
+<td class="px-4 py-3">
+<span class="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-mono-label bg-error/10 text-error border border-error/20">FAILED</span>
+</td>
+<td class="px-4 py-3 text-error truncate max-w-[200px] font-mono-label text-[11px]">ConnectionTimeout: Database unreachable</td>
+</tr>
+</tbody>
+</table>
+</div>
+</section>
+<!-- Section 5: Logs -->
+<section class="bg-surface-container-lowest border border-outline-variant rounded-lg flex flex-col h-[400px]">
+<div class="p-3 border-b border-outline-variant bg-surface-container flex justify-between items-center">
+<h3 class="font-title-sm text-title-sm flex items-center gap-2">
+<span class="material-symbols-outlined text-[18px]">terminal</span> Live Logs
+                            </h3>
+<div class="flex gap-2">
+<span class="w-3 h-3 rounded-full bg-secondary-container animate-pulse"></span>
+</div>
+</div>
+<div class="p-4 flex-1 overflow-y-auto font-mono-label text-[11px] leading-relaxed text-on-surface-variant bg-[#020617]">
+<div class="flex gap-4 hover:bg-surface/50 py-0.5"><span class="text-outline-variant w-24 shrink-0">10:00:15.001</span><span class="text-secondary-container w-12 shrink-0">INFO</span><span class="text-on-surface break-all">Initializing worker environment [wrk-99x-eu-west]</span></div>
+<div class="flex gap-4 hover:bg-surface/50 py-0.5"><span class="text-outline-variant w-24 shrink-0">10:00:15.042</span><span class="text-secondary-container w-12 shrink-0">INFO</span><span class="text-on-surface break-all">Loading payload dependencies...</span></div>
+<div class="flex gap-4 hover:bg-surface/50 py-0.5"><span class="text-outline-variant w-24 shrink-0">10:00:16.110</span><span class="text-secondary-container w-12 shrink-0">INFO</span><span class="text-on-surface break-all">Connecting to upstream datasource (ETL_SOURCE_A)</span></div>
+<div class="flex gap-4 hover:bg-surface/50 py-0.5"><span class="text-outline-variant w-24 shrink-0">10:00:18.405</span><span class="text-tertiary w-12 shrink-0">WARN</span><span class="text-tertiary break-all">Latency spike detected on datasource (250ms)</span></div>
+<div class="flex gap-4 hover:bg-surface/50 py-0.5"><span class="text-outline-variant w-24 shrink-0">10:00:19.000</span><span class="text-secondary-container w-12 shrink-0">INFO</span><span class="text-on-surface break-all">Beginning chunk processing (0/1000)</span></div>
+<div class="flex gap-4 hover:bg-surface/50 py-0.5"><span class="text-outline-variant w-24 shrink-0">10:01:45.221</span><span class="text-secondary-container w-12 shrink-0">INFO</span><span class="text-on-surface break-all">Processed 250/1000 chunks...</span></div>
+<div class="flex gap-4 hover:bg-surface/50 py-0.5"><span class="text-outline-variant w-24 shrink-0">10:03:10.553</span><span class="text-secondary-container w-12 shrink-0">INFO</span><span class="text-on-surface break-all">Processed 500/1000 chunks...</span></div>
+</div>
+</section>
+</div>
+<!-- Right Column (Narrower) -->
+<div class="flex flex-col gap-gutter">
+<!-- Section 2: Detailed Info Grid -->
+<section class="bg-surface-container-low border border-outline-variant rounded-lg p-4">
+<h3 class="font-title-sm text-title-sm mb-4 border-b border-outline-variant pb-2">Properties</h3>
+<dl class="grid grid-cols-1 gap-y-4 font-body-sm text-body-sm">
+<div>
+<dt class="text-on-surface-variant font-mono-label text-mono-label mb-1">JOB ID</dt>
+<dd class="text-on-surface font-mono-label">JOB-12345</dd>
+</div>
+<div>
+<dt class="text-on-surface-variant font-mono-label text-mono-label mb-1">TYPE</dt>
+<dd class="text-on-surface">etl_pipeline_v2</dd>
+</div>
+<div>
+<dt class="text-on-surface-variant font-mono-label text-mono-label mb-1">QUEUE</dt>
+<dd class="text-on-surface"><a class="text-primary hover:underline" href="#">high-priority-compute</a></dd>
+</div>
+<div>
+<dt class="text-on-surface-variant font-mono-label text-mono-label mb-1">WORKER</dt>
+<dd class="text-on-surface"><a class="text-primary hover:underline font-mono-label" href="#">wrk-99x-eu-west</a></dd>
+</div>
+<div class="pt-2 border-t border-outline-variant/50">
+<dt class="text-on-surface-variant font-mono-label text-mono-label mb-1">CREATED AT</dt>
+<dd class="text-on-surface font-mono-label">2023-10-27 09:55:00 UTC</dd>
+</div>
+<div>
+<dt class="text-on-surface-variant font-mono-label text-mono-label mb-1">STARTED AT</dt>
+<dd class="text-on-surface font-mono-label">2023-10-27 10:00:15 UTC</dd>
+</div>
+<div>
+<dt class="text-on-surface-variant font-mono-label text-mono-label mb-1">TIMEOUT</dt>
+<dd class="text-on-surface font-mono-label">3600s (1h)</dd>
+</div>
+</dl>
+</section>
+<!-- Section 3: Payload -->
+<section class="bg-surface-container-low border border-outline-variant rounded-lg flex flex-col flex-1 min-h-[300px]">
+<div class="p-3 border-b border-outline-variant bg-surface-container flex justify-between items-center">
+<h3 class="font-title-sm text-title-sm flex items-center gap-2">
+<span class="material-symbols-outlined text-[18px]">data_object</span> Payload
+                            </h3>
+<button class="text-outline hover:text-primary transition-colors"><span class="material-symbols-outlined text-[18px]">content_copy</span></button>
+</div>
+<div class="p-4 flex-1 bg-[#020617] rounded-b-lg overflow-auto">
+<pre class="font-mono-label text-[11px] text-secondary leading-relaxed">{
+  "source_db": "prod-cluster-01",
+  "target_bucket": "s3://alpha-data-lake/raw",
+  "batch_size": 1000,
+  "schema_version": "v2.1",
+  "transformations": [
+    "PII_masking",
+    "timestamp_normalize"
+  ],
+  "retry_config": {
+    "max_attempts": 3,
+    "backoff_multiplier": 1.5
+  },
+  "metadata": {
+    "trigger": "cron",
+    "owner": "data-eng-team"
+  }
+}
+                            </pre>
+</div>
+</section>
+</div>
+</div>
+</main>
+</div>
+</body></html>

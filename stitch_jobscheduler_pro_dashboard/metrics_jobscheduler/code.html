@@ -1,0 +1,525 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>JobScheduler Metrics</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script id="tailwind-config">
+        tailwind.config = {
+          darkMode: "class",
+          theme: {
+            extend: {
+              "colors": {
+                      "error": "#ffb4ab",
+                      "primary-container": "#8083ff",
+                      "error-container": "#93000a",
+                      "surface-container": "#171f33",
+                      "on-tertiary-fixed-variant": "#703700",
+                      "primary-fixed": "#e1e0ff",
+                      "surface-container-highest": "#2d3449",
+                      "surface-container-high": "#222a3d",
+                      "on-tertiary-fixed": "#301400",
+                      "tertiary-fixed-dim": "#ffb783",
+                      "outline-variant": "#464554",
+                      "on-primary-fixed": "#07006c",
+                      "inverse-surface": "#dae2fd",
+                      "surface-container-low": "#131b2e",
+                      "secondary-fixed": "#c9e6ff",
+                      "surface": "#0b1326",
+                      "on-secondary-fixed": "#001e2f",
+                      "secondary-container": "#00a2e6",
+                      "on-secondary-fixed-variant": "#004c6e",
+                      "surface-container-lowest": "#060e20",
+                      "secondary": "#89ceff",
+                      "secondary-fixed-dim": "#89ceff",
+                      "surface-tint": "#c0c1ff",
+                      "on-primary-container": "#0d0096",
+                      "primary": "#c0c1ff",
+                      "on-tertiary-container": "#452000",
+                      "surface-bright": "#31394d",
+                      "inverse-primary": "#494bd6",
+                      "background": "#0b1326",
+                      "tertiary-fixed": "#ffdcc5",
+                      "on-primary-fixed-variant": "#2f2ebe",
+                      "on-secondary": "#00344d",
+                      "on-surface": "#dae2fd",
+                      "on-surface-variant": "#c7c4d7",
+                      "outline": "#908fa0",
+                      "primary-fixed-dim": "#c0c1ff",
+                      "tertiary-container": "#d97721",
+                      "on-background": "#dae2fd",
+                      "surface-variant": "#2d3449",
+                      "inverse-on-surface": "#283044",
+                      "tertiary": "#ffb783",
+                      "on-tertiary": "#4f2500",
+                      "on-error": "#690005",
+                      "on-primary": "#1000a9",
+                      "surface-dim": "#0b1326",
+                      "on-error-container": "#ffdad6",
+                      "on-secondary-container": "#00344e"
+              },
+              "borderRadius": {
+                      "DEFAULT": "0.125rem",
+                      "lg": "0.25rem",
+                      "xl": "0.5rem",
+                      "full": "0.75rem"
+              },
+              "spacing": {
+                      "gutter": "16px",
+                      "container_margin": "24px",
+                      "base_grid": "4px",
+                      "sidebar_width": "260px",
+                      "sidebar_collapsed": "64px",
+                      "section_gap": "32px"
+              },
+              "fontFamily": {
+                      "headline-md": [
+                              "Geist", "sans-serif"
+                      ],
+                      "title-sm": [
+                              "Geist", "sans-serif"
+                      ],
+                      "display-lg": [
+                              "Geist", "sans-serif"
+                      ],
+                      "body-sm": [
+                              "Inter", "sans-serif"
+                      ],
+                      "headline-lg-mobile": [
+                              "Geist", "sans-serif"
+                      ],
+                      "mono-label": [
+                              "JetBrains Mono", "monospace"
+                      ],
+                      "body-md": [
+                              "Inter", "sans-serif"
+                      ]
+              },
+              "fontSize": {
+                      "headline-md": [
+                              "24px",
+                              {
+                                      "lineHeight": "32px",
+                                      "letterSpacing": "-0.01em",
+                                      "fontWeight": "600"
+                              }
+                      ],
+                      "title-sm": [
+                              "18px",
+                              {
+                                      "lineHeight": "24px",
+                                      "fontWeight": "600"
+                              }
+                      ],
+                      "display-lg": [
+                              "32px",
+                              {
+                                      "lineHeight": "40px",
+                                      "letterSpacing": "-0.02em",
+                                      "fontWeight": "700"
+                              }
+                      ],
+                      "body-sm": [
+                              "12px",
+                              {
+                                      "lineHeight": "16px",
+                                      "fontWeight": "400"
+                              }
+                      ],
+                      "headline-lg-mobile": [
+                              "24px",
+                              {
+                                      "lineHeight": "32px",
+                                      "fontWeight": "700"
+                              }
+                      ],
+                      "mono-label": [
+                              "12px",
+                              {
+                                      "lineHeight": "16px",
+                                      "letterSpacing": "0.02em",
+                                      "fontWeight": "500"
+                              }
+                      ],
+                      "body-md": [
+                              "14px",
+                              {
+                                      "lineHeight": "20px",
+                                      "fontWeight": "400"
+                              }
+                      ]
+              }
+      },
+          },
+        }
+    </script>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@100..900&amp;family=Inter:ital,opsz,wght@0,14..32,100..900;1,14..32,100..900&amp;family=JetBrains+Mono:ital,wght@0,100..800;1,100..800&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<style>
+        /* Base styles */
+        body {
+            background-color: theme('colors.background');
+            color: theme('colors.on-background');
+            font-family: theme('fontFamily.body-md');
+            -webkit-font-smoothing: antialiased;
+        }
+        
+        /* Custom scrollbar for a cleaner look */
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: theme('colors.surface-variant');
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: theme('colors.outline');
+        }
+
+        /* Utility for chart placeholders */
+        .chart-placeholder {
+            background-image: linear-gradient(to right, theme('colors.surface-container-high') 1px, transparent 1px),
+                              linear-gradient(to bottom, theme('colors.surface-container-high') 1px, transparent 1px);
+            background-size: 20px 20px;
+        }
+    </style>
+</head>
+<body class="bg-background text-on-background flex h-screen overflow-hidden">
+<!-- SideNavBar (from JSON) -->
+<nav class="fixed left-0 top-0 h-screen w-sidebar_width border-r border-outline-variant bg-surface-container dark:bg-surface-container flex flex-col h-full py-container_margin px-4 z-50">
+<!-- Header -->
+<div class="flex items-center gap-3 px-2 mb-8">
+<div class="w-8 h-8 rounded-DEFAULT bg-primary flex items-center justify-center">
+<span class="material-symbols-outlined text-on-primary" style="font-variation-settings: 'FILL' 1;">work</span>
+</div>
+<div>
+<h1 class="font-headline-md text-headline-md font-bold text-primary dark:text-primary leading-none">JobScheduler</h1>
+<p class="font-body-sm text-body-sm text-on-surface-variant">Distributed Engine</p>
+</div>
+</div>
+<!-- Navigation Links -->
+<ul class="flex flex-col gap-1 flex-grow font-body-md text-body-md">
+<li>
+<a class="flex items-center gap-3 px-3 py-2 rounded-lg text-on-surface-variant hover:bg-surface-container-highest transition-colors duration-200 cursor-pointer active:scale-95 group" href="#">
+<span class="material-symbols-outlined group-hover:text-primary transition-colors">dashboard</span>
+<span>Dashboard</span>
+</a>
+</li>
+<li>
+<a class="flex items-center gap-3 px-3 py-2 rounded-lg text-on-surface-variant hover:bg-surface-container-highest transition-colors duration-200 cursor-pointer active:scale-95 group" href="#">
+<span class="material-symbols-outlined group-hover:text-primary transition-colors">folder</span>
+<span>Projects</span>
+</a>
+</li>
+<li>
+<a class="flex items-center gap-3 px-3 py-2 rounded-lg text-on-surface-variant hover:bg-surface-container-highest transition-colors duration-200 cursor-pointer active:scale-95 group" href="#">
+<span class="material-symbols-outlined group-hover:text-primary transition-colors">queue</span>
+<span>Queues</span>
+</a>
+</li>
+<li>
+<a class="flex items-center gap-3 px-3 py-2 rounded-lg text-on-surface-variant hover:bg-surface-container-highest transition-colors duration-200 cursor-pointer active:scale-95 group" href="#">
+<span class="material-symbols-outlined group-hover:text-primary transition-colors">work</span>
+<span>Jobs</span>
+</a>
+</li>
+<li>
+<a class="flex items-center gap-3 px-3 py-2 rounded-lg text-on-surface-variant hover:bg-surface-container-highest transition-colors duration-200 cursor-pointer active:scale-95 group" href="#">
+<span class="material-symbols-outlined group-hover:text-primary transition-colors">engineering</span>
+<span>Workers</span>
+</a>
+</li>
+<li>
+<a class="flex items-center gap-3 px-3 py-2 rounded-lg text-on-surface-variant hover:bg-surface-container-highest transition-colors duration-200 cursor-pointer active:scale-95 group" href="#">
+<span class="material-symbols-outlined group-hover:text-primary transition-colors">error</span>
+<span>DLQ</span>
+</a>
+</li>
+<li>
+<!-- ACTIVE TAB: Metrics -->
+<a class="flex items-center gap-3 px-3 py-2 rounded-lg bg-primary-container text-on-primary-container font-semibold cursor-pointer active:scale-95" href="#">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">analytics</span>
+<span>Metrics</span>
+</a>
+</li>
+<li>
+<a class="flex items-center gap-3 px-3 py-2 rounded-lg text-on-surface-variant hover:bg-surface-container-highest transition-colors duration-200 cursor-pointer active:scale-95 group" href="#">
+<span class="material-symbols-outlined group-hover:text-primary transition-colors">settings</span>
+<span>Settings</span>
+</a>
+</li>
+</ul>
+<!-- Logout -->
+<div class="mt-auto pt-4 border-t border-outline-variant/30">
+<a class="flex items-center gap-3 px-3 py-2 rounded-lg text-on-surface-variant hover:bg-surface-container-highest transition-colors duration-200 cursor-pointer active:scale-95 group font-body-md text-body-md" href="#">
+<span class="material-symbols-outlined group-hover:text-error transition-colors">logout</span>
+<span>Logout</span>
+</a>
+</div>
+</nav>
+<!-- Main Content Area (Offset by Sidebar Width) -->
+<div class="flex-1 ml-[theme('spacing.sidebar_width')] flex flex-col h-screen relative bg-background">
+<!-- TopNavBar (from JSON) -->
+<header class="fixed top-0 right-0 w-[calc(100%-theme(spacing.sidebar_width))] h-16 bg-surface/80 dark:bg-surface/80 backdrop-blur-md border-b border-outline-variant flex justify-between items-center px-container_margin z-40">
+<!-- Left: Organization context -->
+<div class="flex items-center gap-4">
+<span class="font-headline-md text-headline-md text-on-surface">JobScheduler</span>
+<div class="h-4 w-px bg-outline-variant"></div>
+<div class="flex items-center gap-2">
+<span class="font-title-sm text-title-sm text-on-surface-variant hover:text-primary transition-colors cursor-pointer">Organization Alpha</span>
+<span class="material-symbols-outlined text-sm text-outline">arrow_drop_down</span>
+</div>
+</div>
+<!-- Right: Actions -->
+<div class="flex items-center gap-4">
+<button class="p-2 text-on-surface-variant hover:text-primary transition-colors cursor-pointer relative group">
+<span class="material-symbols-outlined">notifications</span>
+<span class="absolute top-2 right-2 w-2 h-2 bg-error rounded-full border border-surface group-hover:border-surface-highest transition-colors"></span>
+</button>
+<div class="w-8 h-8 rounded-full overflow-hidden border border-outline-variant cursor-pointer hover:border-primary transition-colors">
+<img alt="User Avatar" class="w-full h-full object-cover" data-alt="A professional headshot of a DevOps engineer in a modern, well-lit corporate office setting, conveying competence and technical focus." src="https://lh3.googleusercontent.com/aida-public/AB6AXuCfJWpcQsn8Pr10oQBYrbX0JspeBIUAAiNh4nUX-IkUkOFBTHGZu5TUWfCzEeo1SVe1c8AaQsERMTDI-RrmA-LH2TdqXCptr94abEl-fgCz6B0HNAnxa5OK16xlvRiip2FmG63NzhrMdNnIjvwGGAf081xWWvHp6mhm-iku9fOKeatSFex3Av-KxiMY6WkPbzldQqe50wSjPGbooN0l6g3hTdyhjR4j-RGYGe-5NJSJZ4JQGsML7YEx"/>
+</div>
+</div>
+</header>
+<!-- Canvas -->
+<main class="flex-1 mt-16 p-container_margin overflow-y-auto w-full max-w-[1600px] mx-auto">
+<!-- Page Header & Controls -->
+<div class="flex flex-col md:flex-row justify-between items-start md:items-end gap-4 mb-8">
+<div>
+<h2 class="font-display-lg text-display-lg text-on-surface">Metrics Overview</h2>
+<p class="font-body-md text-body-md text-on-surface-variant mt-1">System performance and queue telemetry.</p>
+</div>
+<!-- Time Range Selector -->
+<div class="flex bg-surface-container p-1 rounded-lg border border-outline-variant">
+<button class="px-4 py-1.5 rounded-DEFAULT font-body-sm text-body-sm text-on-surface-variant hover:text-on-surface transition-colors">1h</button>
+<button class="px-4 py-1.5 rounded-DEFAULT font-body-sm text-body-sm text-on-surface-variant hover:text-on-surface transition-colors">24h</button>
+<button class="px-4 py-1.5 rounded-DEFAULT bg-primary-container text-on-primary-container font-semibold shadow-sm">7d</button>
+<button class="px-4 py-1.5 rounded-DEFAULT font-body-sm text-body-sm text-on-surface-variant hover:text-on-surface transition-colors">30d</button>
+<button class="px-4 py-1.5 rounded-DEFAULT font-body-sm text-body-sm text-on-surface-variant hover:text-on-surface transition-colors flex items-center gap-1">
+<span class="material-symbols-outlined text-[16px]">calendar_today</span> Custom
+                    </button>
+</div>
+</div>
+<!-- Bento Grid Layout -->
+<div class="grid grid-cols-12 gap-gutter">
+<!-- KPI Stats Row (Spans full width, internal grid) -->
+<div class="col-span-12 grid grid-cols-1 md:grid-cols-4 gap-gutter mb-2">
+<!-- Stat 1 -->
+<div class="bg-surface-container rounded-xl p-4 border border-outline-variant/50 hover:border-outline-variant transition-colors flex flex-col justify-between">
+<div class="flex justify-between items-start mb-4">
+<span class="font-mono-label text-mono-label text-on-surface-variant uppercase">Total Processed</span>
+<span class="material-symbols-outlined text-primary">check_circle</span>
+</div>
+<div>
+<div class="font-display-lg text-display-lg text-on-surface">1.24M</div>
+<div class="font-body-sm text-body-sm text-secondary mt-1 flex items-center gap-1">
+<span class="material-symbols-outlined text-[14px]">trending_up</span> +12% from last week
+                            </div>
+</div>
+</div>
+<!-- Stat 2 -->
+<div class="bg-surface-container rounded-xl p-4 border border-outline-variant/50 hover:border-outline-variant transition-colors flex flex-col justify-between">
+<div class="flex justify-between items-start mb-4">
+<span class="font-mono-label text-mono-label text-on-surface-variant uppercase">Current Backlog</span>
+<span class="material-symbols-outlined text-tertiary">stacked_inbox</span>
+</div>
+<div>
+<div class="font-display-lg text-display-lg text-on-surface">4,892</div>
+<div class="font-body-sm text-body-sm text-on-surface-variant mt-1 flex items-center gap-1">
+                                Across 12 queues
+                            </div>
+</div>
+</div>
+<!-- Stat 3 -->
+<div class="bg-surface-container rounded-xl p-4 border border-outline-variant/50 hover:border-outline-variant transition-colors flex flex-col justify-between">
+<div class="flex justify-between items-start mb-4">
+<span class="font-mono-label text-mono-label text-on-surface-variant uppercase">Avg Wait Time</span>
+<span class="material-symbols-outlined text-secondary">hourglass_empty</span>
+</div>
+<div>
+<div class="font-display-lg text-display-lg text-on-surface">1.4s</div>
+<div class="font-body-sm text-body-sm text-secondary mt-1 flex items-center gap-1">
+<span class="material-symbols-outlined text-[14px]">trending_down</span> -0.2s from avg
+                            </div>
+</div>
+</div>
+<!-- Stat 4 -->
+<div class="bg-surface-container rounded-xl p-4 border border-outline-variant/50 hover:border-outline-variant transition-colors flex flex-col justify-between relative overflow-hidden">
+<!-- Subtle status glow -->
+<div class="absolute -right-4 -top-4 w-16 h-16 bg-error/20 blur-xl rounded-full"></div>
+<div class="flex justify-between items-start mb-4 relative z-10">
+<span class="font-mono-label text-mono-label text-on-surface-variant uppercase">Error Rate</span>
+<span class="material-symbols-outlined text-error">warning</span>
+</div>
+<div class="relative z-10">
+<div class="font-display-lg text-display-lg text-error">0.8%</div>
+<div class="font-body-sm text-body-sm text-error mt-1 flex items-center gap-1">
+<span class="material-symbols-outlined text-[14px]">trending_up</span> +0.1% spike detected
+                            </div>
+</div>
+</div>
+</div>
+<!-- Main Chart: Jobs Processed (Line) -->
+<div class="col-span-12 lg:col-span-8 bg-surface-container rounded-xl border border-outline-variant flex flex-col">
+<div class="p-4 border-b border-outline-variant flex justify-between items-center">
+<h3 class="font-title-sm text-title-sm text-on-surface">Jobs Processed Overview</h3>
+<button class="p-1 rounded hover:bg-surface-container-highest transition-colors text-on-surface-variant">
+<span class="material-symbols-outlined text-sm">more_vert</span>
+</button>
+</div>
+<div class="p-4 flex-1 min-h-[300px] flex flex-col">
+<!-- Chart Mockup Structure -->
+<div class="flex-1 w-full chart-placeholder relative rounded-lg border border-outline-variant/30 overflow-hidden">
+<!-- Y-axis labels -->
+<div class="absolute left-2 top-0 bottom-6 flex flex-col justify-between font-mono-label text-mono-label text-outline-variant py-2">
+<span>10k</span>
+<span>7.5k</span>
+<span>5k</span>
+<span>2.5k</span>
+<span>0</span>
+</div>
+<!-- X-axis labels -->
+<div class="absolute bottom-1 left-12 right-2 flex justify-between font-mono-label text-mono-label text-outline-variant">
+<span>Mon</span>
+<span>Tue</span>
+<span>Wed</span>
+<span>Thu</span>
+<span>Fri</span>
+<span>Sat</span>
+<span>Sun</span>
+</div>
+<!-- Mock Line Path -->
+<svg class="absolute inset-0 w-full h-full p-6 pl-12 pb-8 pointer-events-none" preserveaspectratio="none" viewbox="0 0 100 100">
+<!-- Area fill -->
+<path d="M0,80 L15,65 L30,70 L45,40 L60,50 L75,20 L90,30 L100,10 L100,100 L0,100 Z" fill="url(#primary-gradient)" opacity="0.1"></path>
+<!-- Line -->
+<path d="M0,80 L15,65 L30,70 L45,40 L60,50 L75,20 L90,30 L100,10" fill="none" stroke="theme('colors.primary')" stroke-width="2" vector-effect="non-scaling-stroke"></path>
+<defs>
+<lineargradient id="primary-gradient" x1="0%" x2="0%" y1="0%" y2="100%">
+<stop offset="0%" stop-color="theme('colors.primary')"></stop>
+<stop offset="100%" stop-color="theme('colors.surface-container')"></stop>
+</lineargradient>
+</defs>
+</svg>
+</div>
+<div class="flex gap-4 mt-3 justify-center">
+<div class="flex items-center gap-2"><div class="w-3 h-3 rounded-full bg-primary"></div><span class="font-body-sm text-body-sm text-on-surface-variant">Successful</span></div>
+<div class="flex items-center gap-2"><div class="w-3 h-3 rounded-full bg-error"></div><span class="font-body-sm text-body-sm text-on-surface-variant">Failed</span></div>
+</div>
+</div>
+</div>
+<!-- Secondary Chart: Worker Utilization (Gauge/Donut mix) -->
+<div class="col-span-12 lg:col-span-4 bg-surface-container rounded-xl border border-outline-variant flex flex-col">
+<div class="p-4 border-b border-outline-variant">
+<h3 class="font-title-sm text-title-sm text-on-surface">Worker Utilization</h3>
+</div>
+<div class="p-6 flex-1 flex flex-col items-center justify-center relative min-h-[300px]">
+<!-- SVG Donut Chart Mockup -->
+<div class="relative w-48 h-48">
+<svg class="w-full h-full transform -rotate-90" viewbox="0 0 36 36">
+<!-- Background Circle -->
+<path class="text-surface-container-highest" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" fill="none" stroke="currentColor" stroke-dasharray="100, 100" stroke-width="3"></path>
+<!-- Progress Circle (85%) -->
+<path class="text-secondary" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" fill="none" stroke="currentColor" stroke-dasharray="85, 100" stroke-linecap="round" stroke-width="3"></path>
+</svg>
+<!-- Center Text -->
+<div class="absolute inset-0 flex flex-col items-center justify-center">
+<span class="font-display-lg text-display-lg text-on-surface leading-none">85%</span>
+<span class="font-body-sm text-body-sm text-on-surface-variant mt-1">Capacity</span>
+</div>
+</div>
+<div class="w-full mt-6 space-y-3">
+<div class="flex justify-between items-center">
+<span class="font-body-sm text-body-sm text-on-surface-variant">Active Nodes</span>
+<span class="font-mono-label text-mono-label text-on-surface">42 / 50</span>
+</div>
+<div class="w-full bg-surface-container-highest h-1.5 rounded-full overflow-hidden">
+<div class="bg-secondary h-full rounded-full" style="width: 84%"></div>
+</div>
+</div>
+</div>
+</div>
+<!-- Bottom Row: Bar & Pie -->
+<div class="col-span-12 grid grid-cols-1 lg:grid-cols-2 gap-gutter mt-2">
+<!-- Bar Chart: Execution Duration -->
+<div class="bg-surface-container rounded-xl border border-outline-variant flex flex-col">
+<div class="p-4 border-b border-outline-variant flex justify-between items-center">
+<h3 class="font-title-sm text-title-sm text-on-surface">Avg Duration by Queue (ms)</h3>
+</div>
+<div class="p-4 flex-1 h-[250px] flex items-end gap-2 pt-8 relative">
+<!-- Y-axis labels -->
+<div class="absolute left-4 top-4 bottom-8 flex flex-col justify-between font-mono-label text-mono-label text-outline-variant py-2">
+<span>500</span>
+<span>250</span>
+<span>0</span>
+</div>
+<!-- Bars -->
+<div class="flex-1 flex items-end justify-around h-full pl-8 pb-6 border-b border-l border-outline-variant/30 relative">
+<div class="w-1/6 bg-primary/80 hover:bg-primary rounded-t-sm h-[80%] transition-colors relative group">
+<div class="absolute -bottom-6 w-full text-center font-mono-label text-mono-label text-on-surface-variant">Q1</div>
+</div>
+<div class="w-1/6 bg-primary/60 hover:bg-primary rounded-t-sm h-[45%] transition-colors relative group">
+<div class="absolute -bottom-6 w-full text-center font-mono-label text-mono-label text-on-surface-variant">Q2</div>
+</div>
+<div class="w-1/6 bg-tertiary/80 hover:bg-tertiary rounded-t-sm h-[95%] transition-colors relative group">
+<div class="absolute -bottom-6 w-full text-center font-mono-label text-mono-label text-on-surface-variant">Q3</div>
+</div>
+<div class="w-1/6 bg-primary/40 hover:bg-primary rounded-t-sm h-[20%] transition-colors relative group">
+<div class="absolute -bottom-6 w-full text-center font-mono-label text-mono-label text-on-surface-variant">Q4</div>
+</div>
+<div class="w-1/6 bg-primary/70 hover:bg-primary rounded-t-sm h-[60%] transition-colors relative group">
+<div class="absolute -bottom-6 w-full text-center font-mono-label text-mono-label text-on-surface-variant">Q5</div>
+</div>
+</div>
+</div>
+</div>
+<!-- Pie/List: Error Distribution -->
+<div class="bg-surface-container rounded-xl border border-outline-variant flex flex-col">
+<div class="p-4 border-b border-outline-variant">
+<h3 class="font-title-sm text-title-sm text-on-surface">Error Distribution</h3>
+</div>
+<div class="p-4 flex-1 h-[250px] flex items-center gap-6">
+<!-- Simple Pie Visual -->
+<div class="w-32 h-32 rounded-full relative overflow-hidden ml-4 shrink-0" style="background: conic-gradient(theme('colors.error') 0% 45%, theme('colors.tertiary') 45% 75%, theme('colors.outline-variant') 75% 100%);">
+<div class="absolute inset-2 bg-surface-container rounded-full"></div>
+</div>
+<!-- Legend / List -->
+<div class="flex-1 space-y-3">
+<div class="flex justify-between items-center p-2 rounded hover:bg-surface-container-highest transition-colors">
+<div class="flex items-center gap-2">
+<div class="w-3 h-3 rounded bg-error"></div>
+<span class="font-body-md text-body-md text-on-surface">TimeoutExceptions</span>
+</div>
+<span class="font-mono-label text-mono-label text-on-surface-variant">45%</span>
+</div>
+<div class="flex justify-between items-center p-2 rounded hover:bg-surface-container-highest transition-colors">
+<div class="flex items-center gap-2">
+<div class="w-3 h-3 rounded bg-tertiary"></div>
+<span class="font-body-md text-body-md text-on-surface">ConnectionRefused</span>
+</div>
+<span class="font-mono-label text-mono-label text-on-surface-variant">30%</span>
+</div>
+<div class="flex justify-between items-center p-2 rounded hover:bg-surface-container-highest transition-colors">
+<div class="flex items-center gap-2">
+<div class="w-3 h-3 rounded bg-outline-variant"></div>
+<span class="font-body-md text-body-md text-on-surface">MemoryLimits</span>
+</div>
+<span class="font-mono-label text-mono-label text-on-surface-variant">25%</span>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="h-16"></div> <!-- Bottom padding -->
+</main>
+</div>
+</body></html>

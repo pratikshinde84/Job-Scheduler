@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>JobScheduler - DLQ</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&amp;family=JetBrains+Mono:wght@500&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "error": "#ffb4ab",
+                        "primary-container": "#8083ff",
+                        "error-container": "#93000a",
+                        "surface-container": "#171f33",
+                        "on-tertiary-fixed-variant": "#703700",
+                        "primary-fixed": "#e1e0ff",
+                        "surface-container-highest": "#2d3449",
+                        "surface-container-high": "#222a3d",
+                        "on-tertiary-fixed": "#301400",
+                        "tertiary-fixed-dim": "#ffb783",
+                        "outline-variant": "#464554",
+                        "on-primary-fixed": "#07006c",
+                        "inverse-surface": "#dae2fd",
+                        "surface-container-low": "#131b2e",
+                        "secondary-fixed": "#c9e6ff",
+                        "surface": "#0b1326",
+                        "on-secondary-fixed": "#001e2f",
+                        "secondary-container": "#00a2e6",
+                        "on-secondary-fixed-variant": "#004c6e",
+                        "surface-container-lowest": "#060e20",
+                        "secondary": "#89ceff",
+                        "secondary-fixed-dim": "#89ceff",
+                        "surface-tint": "#c0c1ff",
+                        "on-primary-container": "#0d0096",
+                        "primary": "#c0c1ff",
+                        "on-tertiary-container": "#452000",
+                        "surface-bright": "#31394d",
+                        "inverse-primary": "#494bd6",
+                        "background": "#0b1326",
+                        "tertiary-fixed": "#ffdcc5",
+                        "on-primary-fixed-variant": "#2f2ebe",
+                        "on-secondary": "#00344d",
+                        "on-surface": "#dae2fd",
+                        "on-surface-variant": "#c7c4d7",
+                        "outline": "#908fa0",
+                        "primary-fixed-dim": "#c0c1ff",
+                        "tertiary-container": "#d97721",
+                        "on-background": "#dae2fd",
+                        "surface-variant": "#2d3449",
+                        "inverse-on-surface": "#283044",
+                        "tertiary": "#ffb783",
+                        "on-tertiary": "#4f2500",
+                        "on-error": "#690005",
+                        "on-primary": "#1000a9",
+                        "surface-dim": "#0b1326",
+                        "on-error-container": "#ffdad6",
+                        "on-secondary-container": "#00344e"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.125rem",
+                        "lg": "0.25rem",
+                        "xl": "0.5rem",
+                        "full": "0.75rem"
+                    },
+                    "spacing": {
+                        "gutter": "16px",
+                        "container_margin": "24px",
+                        "base_grid": "4px",
+                        "sidebar_width": "260px",
+                        "sidebar_collapsed": "64px",
+                        "section_gap": "32px"
+                    },
+                    "fontFamily": {
+                        "headline-md": ["Geist", "sans-serif"],
+                        "title-sm": ["Geist", "sans-serif"],
+                        "display-lg": ["Geist", "sans-serif"],
+                        "body-sm": ["Inter", "sans-serif"],
+                        "headline-lg-mobile": ["Geist", "sans-serif"],
+                        "mono-label": ["JetBrains Mono", "monospace"],
+                        "body-md": ["Inter", "sans-serif"]
+                    },
+                    "fontSize": {
+                        "headline-md": ["24px", { "lineHeight": "32px", "letterSpacing": "-0.01em", "fontWeight": "600" }],
+                        "title-sm": ["18px", { "lineHeight": "24px", "fontWeight": "600" }],
+                        "display-lg": ["32px", { "lineHeight": "40px", "letterSpacing": "-0.02em", "fontWeight": "700" }],
+                        "body-sm": ["12px", { "lineHeight": "16px", "fontWeight": "400" }],
+                        "headline-lg-mobile": ["24px", { "lineHeight": "32px", "fontWeight": "700" }],
+                        "mono-label": ["12px", { "lineHeight": "16px", "letterSpacing": "0.02em", "fontWeight": "500" }],
+                        "body-md": ["14px", { "lineHeight": "20px", "fontWeight": "400" }]
+                    }
+                }
+            }
+        }
+    </script>
+<style>
+        body { font-family: 'Inter', sans-serif; }
+        .geist-font { font-family: 'Geist', sans-serif; }
+        
+        /* Tooltip styles */
+        .tooltip-trigger { position: relative; }
+        .tooltip-trigger .tooltip-content {
+            visibility: hidden;
+            opacity: 0;
+            position: absolute;
+            bottom: 100%;
+            left: 50%;
+            transform: translateX(-50%) translateY(4px);
+            transition: all 0.2s ease;
+            z-index: 50;
+        }
+        .tooltip-trigger:hover .tooltip-content {
+            visibility: visible;
+            opacity: 1;
+            transform: translateX(-50%) translateY(-4px);
+        }
+        
+        /* Table styles */
+        .tech-table th { border-bottom: 1px solid #1E293B; }
+        .tech-table td { border-bottom: 1px solid #1E293B; transition: background-color 0.2s; }
+        .tech-table tr:hover td { background-color: #1E293B; }
+        .tech-table tr:last-child td { border-bottom: none; }
+        
+        /* Input focus glow */
+        .tech-input:focus {
+            outline: none;
+            border-color: theme('colors.primary');
+            box-shadow: 0 0 0 2px rgba(192, 193, 255, 0.2);
+        }
+    </style>
+</head>
+<body class="bg-background text-on-surface h-screen overflow-hidden flex">
+<!-- SideNavBar -->
+<nav class="fixed left-0 top-0 h-screen w-sidebar_width border-r border-outline-variant bg-surface-container dark:bg-surface-container flex flex-col h-full py-container_margin px-4 z-50">
+<div class="flex items-center gap-3 mb-8 px-2">
+<div class="w-8 h-8 rounded bg-primary flex items-center justify-center text-on-primary font-bold">JS</div>
+<div>
+<div class="font-headline-md text-headline-md font-bold text-primary dark:text-primary leading-none">JobScheduler</div>
+<div class="font-body-sm text-body-sm text-on-surface-variant">Distributed Engine</div>
+</div>
+</div>
+<ul class="flex flex-col gap-1 flex-1 font-body-md text-body-md">
+<li><a class="flex items-center gap-3 px-3 py-2 rounded-DEFAULT text-on-surface-variant hover:bg-surface-container-highest cursor-pointer active:scale-95 transition-colors duration-200" href="#"><span class="material-symbols-outlined" data-icon="dashboard">dashboard</span>Dashboard</a></li>
+<li><a class="flex items-center gap-3 px-3 py-2 rounded-DEFAULT text-on-surface-variant hover:bg-surface-container-highest cursor-pointer active:scale-95 transition-colors duration-200" href="#"><span class="material-symbols-outlined" data-icon="folder">folder</span>Projects</a></li>
+<li><a class="flex items-center gap-3 px-3 py-2 rounded-DEFAULT text-on-surface-variant hover:bg-surface-container-highest cursor-pointer active:scale-95 transition-colors duration-200" href="#"><span class="material-symbols-outlined" data-icon="queue">queue</span>Queues</a></li>
+<li><a class="flex items-center gap-3 px-3 py-2 rounded-DEFAULT text-on-surface-variant hover:bg-surface-container-highest cursor-pointer active:scale-95 transition-colors duration-200" href="#"><span class="material-symbols-outlined" data-icon="work">work</span>Jobs</a></li>
+<li><a class="flex items-center gap-3 px-3 py-2 rounded-DEFAULT text-on-surface-variant hover:bg-surface-container-highest cursor-pointer active:scale-95 transition-colors duration-200" href="#"><span class="material-symbols-outlined" data-icon="engineering">engineering</span>Workers</a></li>
+<li><a class="flex items-center gap-3 px-3 py-2 rounded-DEFAULT bg-primary-container text-on-primary-container font-semibold cursor-pointer active:scale-95 transition-colors duration-200" href="#"><span class="material-symbols-outlined" data-icon="error" data-weight="fill" style="font-variation-settings: 'FILL' 1;">error</span>DLQ</a></li>
+<li><a class="flex items-center gap-3 px-3 py-2 rounded-DEFAULT text-on-surface-variant hover:bg-surface-container-highest cursor-pointer active:scale-95 transition-colors duration-200" href="#"><span class="material-symbols-outlined" data-icon="analytics">analytics</span>Metrics</a></li>
+<li class="mt-auto"><a class="flex items-center gap-3 px-3 py-2 rounded-DEFAULT text-on-surface-variant hover:bg-surface-container-highest cursor-pointer active:scale-95 transition-colors duration-200" href="#"><span class="material-symbols-outlined" data-icon="settings">settings</span>Settings</a></li>
+<li><a class="flex items-center gap-3 px-3 py-2 rounded-DEFAULT text-on-surface-variant hover:bg-surface-container-highest cursor-pointer active:scale-95 transition-colors duration-200" href="#"><span class="material-symbols-outlined" data-icon="logout">logout</span>Logout</a></li>
+</ul>
+</nav>
+<!-- Main Content Area -->
+<div class="ml-sidebar_width flex-1 flex flex-col h-screen overflow-hidden">
+<!-- TopNavBar -->
+<header class="fixed top-0 right-0 w-[calc(100%-theme(spacing.sidebar_width))] h-16 border-b border-outline-variant bg-surface/80 dark:bg-surface/80 backdrop-blur-md flex justify-between items-center px-container_margin z-40">
+<div class="flex items-center gap-6">
+<!-- Navigation Links -->
+<nav class="flex gap-4">
+<a class="font-title-sm text-title-sm text-on-surface-variant hover:text-primary transition-colors cursor-pointer py-5" href="#">Organization Alpha</a>
+</nav>
+</div>
+<div class="flex items-center gap-4">
+<button class="text-on-surface-variant hover:text-primary transition-colors cursor-pointer w-10 h-10 flex items-center justify-center rounded-full hover:bg-surface-container"><span class="material-symbols-outlined" data-icon="notifications">notifications</span></button>
+<button class="text-on-surface-variant hover:text-primary transition-colors cursor-pointer w-10 h-10 flex items-center justify-center rounded-full hover:bg-surface-container"><span class="material-symbols-outlined" data-icon="account_circle">account_circle</span></button>
+</div>
+</header>
+<!-- Page Canvas -->
+<main class="flex-1 mt-16 p-container_margin overflow-y-auto bg-[#020617]">
+<div class="max-w-7xl mx-auto">
+<!-- Page Header & Batch Actions -->
+<div class="flex justify-between items-end mb-6">
+<div>
+<h1 class="font-display-lg text-display-lg text-on-surface mb-2">Dead Letter Queue</h1>
+<p class="font-body-md text-body-md text-on-surface-variant">Manage permanently failed jobs. Inspect errors or requeue.</p>
+</div>
+<div class="flex gap-3">
+<button class="px-4 py-2 rounded border border-[#1E293B] text-[#E2E8F0] font-body-sm text-body-sm hover:bg-surface-container-highest transition-colors flex items-center gap-2">
+<span class="material-symbols-outlined text-[18px]" data-icon="delete">delete</span>
+                            Delete Selected
+                        </button>
+<button class="px-4 py-2 rounded bg-[#4F46E5] text-white font-body-sm text-body-sm hover:bg-[#4338CA] transition-colors flex items-center gap-2">
+<span class="material-symbols-outlined text-[18px]" data-icon="replay">replay</span>
+                            Retry All
+                        </button>
+</div>
+</div>
+<!-- Filters & Search -->
+<div class="bg-[#0F172A] border border-[#1E293B] rounded-lg p-4 mb-6 flex gap-4 items-center">
+<div class="relative flex-1 max-w-md">
+<span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant text-[20px]" data-icon="search">search</span>
+<input class="tech-input w-full bg-[#020617] border border-outline-variant rounded py-2 pl-10 pr-4 font-body-sm text-body-sm text-on-surface placeholder:text-on-surface-variant/50" placeholder="Search by Job ID or Error..." type="text"/>
+</div>
+<div class="h-6 w-px bg-[#1E293B]"></div>
+<select class="tech-input bg-[#020617] border border-outline-variant rounded py-2 px-3 font-body-sm text-body-sm text-on-surface pr-8">
+<option>All Queues</option>
+<option>payment_processing</option>
+<option>email_dispatch</option>
+<option>data_aggregation</option>
+</select>
+</div>
+<!-- Data Table Card -->
+<div class="bg-[#0F172A] border border-[#1E293B] rounded-lg overflow-hidden">
+<div class="overflow-x-auto">
+<table class="w-full text-left border-collapse tech-table">
+<thead>
+<tr>
+<th class="py-3 px-4 font-mono-label text-mono-label uppercase text-slate-400 w-12 text-center">
+<input class="rounded border-[#1E293B] bg-[#020617] text-primary focus:ring-primary focus:ring-offset-[#0F172A]" type="checkbox"/>
+</th>
+<th class="py-3 px-4 font-mono-label text-mono-label uppercase text-slate-400">Job ID</th>
+<th class="py-3 px-4 font-mono-label text-mono-label uppercase text-slate-400">Original Queue</th>
+<th class="py-3 px-4 font-mono-label text-mono-label uppercase text-slate-400 w-1/3">Failure Reason</th>
+<th class="py-3 px-4 font-mono-label text-mono-label uppercase text-slate-400 text-center">Attempts</th>
+<th class="py-3 px-4 font-mono-label text-mono-label uppercase text-slate-400">Failed At</th>
+<th class="py-3 px-4 font-mono-label text-mono-label uppercase text-slate-400 text-right">Actions</th>
+</tr>
+</thead>
+<tbody class="font-body-md text-body-md">
+<!-- Row 1 -->
+<tr>
+<td class="py-3 px-4 text-center">
+<input class="rounded border-[#1E293B] bg-[#020617] text-primary focus:ring-primary focus:ring-offset-[#0F172A]" type="checkbox"/>
+</td>
+<td class="py-3 px-4 font-mono-label text-mono-label text-primary-fixed">#JOB-982A1B</td>
+<td class="py-3 px-4 text-on-surface-variant">payment_processing</td>
+<td class="py-3 px-4">
+<div class="tooltip-trigger inline-flex items-center gap-2 max-w-[200px]">
+<span class="truncate text-error">StripeAPIConnectionError: Connection timeout after 30000ms...</span>
+<div class="tooltip-content bg-surface-container-high border border-[#1E293B] p-2 rounded shadow-lg text-xs font-mono-label w-64 whitespace-normal break-words">
+                                                StripeAPIConnectionError: Connection timeout after 30000ms while waiting for response from api.stripe.com.
+                                            </div>
+</div>
+</td>
+<td class="py-3 px-4 text-center"><span class="inline-flex items-center justify-center bg-error/10 text-error rounded-full px-2 py-0.5 text-xs font-mono-label">5/5</span></td>
+<td class="py-3 px-4 text-on-surface-variant text-sm">2 mins ago</td>
+<td class="py-3 px-4 text-right">
+<div class="flex justify-end gap-2">
+<button class="p-1.5 rounded hover:bg-surface-container-highest text-on-surface-variant transition-colors" title="Move to Queue"><span class="material-symbols-outlined text-[18px]" data-icon="move_up">move_up</span></button>
+<button class="p-1.5 rounded hover:bg-surface-container-highest text-on-surface-variant transition-colors" title="View Details"><span class="material-symbols-outlined text-[18px]" data-icon="info">info</span></button>
+</div>
+</td>
+</tr>
+<!-- Row 2 -->
+<tr>
+<td class="py-3 px-4 text-center">
+<input class="rounded border-[#1E293B] bg-[#020617] text-primary focus:ring-primary focus:ring-offset-[#0F172A]" type="checkbox"/>
+</td>
+<td class="py-3 px-4 font-mono-label text-mono-label text-primary-fixed">#JOB-771C4F</td>
+<td class="py-3 px-4 text-on-surface-variant">email_dispatch</td>
+<td class="py-3 px-4">
+<div class="tooltip-trigger inline-flex items-center gap-2 max-w-[200px]">
+<span class="truncate text-error">SendGridAuthError: Invalid API Key provided...</span>
+<div class="tooltip-content bg-surface-container-high border border-[#1E293B] p-2 rounded shadow-lg text-xs font-mono-label w-64 whitespace-normal break-words">
+                                                SendGridAuthError: Invalid API Key provided. Authentication failed for user 'system@alpha.org'.
+                                            </div>
+</div>
+</td>
+<td class="py-3 px-4 text-center"><span class="inline-flex items-center justify-center bg-error/10 text-error rounded-full px-2 py-0.5 text-xs font-mono-label">3/3</span></td>
+<td class="py-3 px-4 text-on-surface-variant text-sm">15 mins ago</td>
+<td class="py-3 px-4 text-right">
+<div class="flex justify-end gap-2">
+<button class="p-1.5 rounded hover:bg-surface-container-highest text-on-surface-variant transition-colors" title="Move to Queue"><span class="material-symbols-outlined text-[18px]" data-icon="move_up">move_up</span></button>
+<button class="p-1.5 rounded hover:bg-surface-container-highest text-on-surface-variant transition-colors" title="View Details"><span class="material-symbols-outlined text-[18px]" data-icon="info">info</span></button>
+</div>
+</td>
+</tr>
+</tbody>
+</table>
+</div>
+</div>
+</div>
+</main>
+</div>
+</body></html>
