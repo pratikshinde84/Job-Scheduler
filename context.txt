@@ -1,0 +1,474 @@
+================================================================================
+JOB SCHEDULER — PROJECT CONTEXT
+Last updated: 2026-08-22
+================================================================================
+
+This file tracks everything built in this project so far. Append new entries
+at the bottom whenever changes are made.
+
+--------------------------------------------------------------------------------
+1. PROJECT OVERVIEW
+--------------------------------------------------------------------------------
+
+A full-stack distributed job queue manager. Users log in via OAuth (Google /
+GitHub), create Projects, define Queues inside those projects, and enqueue Jobs.
+A Spring Boot worker process polls queues, executes jobs, handles retries, and
+manages a dead-letter queue for exhausted jobs.
+
+Tech stack:
+  - Backend  : Java 21, Spring Boot 3.3.2, Spring Security, Spring Data JPA
+  - Database : Supabase-hosted PostgreSQL (transaction pooler, ap-southeast-1)
+  - Auth     : Supabase Auth (OAuth — Google + GitHub), JWT (ES256 / ECDSA P-256)
+  - Frontend : React 18, TypeScript, Vite, React Router v6, Supabase JS SDK, Axios
+  - Build    : Maven (backend), npm / Vite (frontend)
+
+--------------------------------------------------------------------------------
+2. REPOSITORY STRUCTURE
+--------------------------------------------------------------------------------
+
+Job-Scheduler/
+├── .env                          # Root-level env (not used directly by app)
+├── context.txt                   # This file
+├── database/
+│   └── schema.sql                # Full PostgreSQL schema — run in Supabase SQL Editor
+├── backend/
+│   ├── pom.xml
+│   └── src/main/
+│       ├── java/com/jobscheduler/
+│       │   ├── JobSchedulerApplication.java
+│       │   ├── controller/       # REST controllers
+│       │   ├── dto/              # Request / Response DTOs
+│       │   ├── entity/           # JPA entities
+│       │   ├── repository/       # Spring Data JPA repositories
+│       │   ├── security/         # JWT filter, JwtService, SecurityConfig, UserContext
+│       │   ├── service/          # Business logic
+│       │   └── worker/           # Background scheduler threads
+│       └── resources/
+│           └── application.properties
+└── frontend/
+    ├── package.json
+    ├── .env                      # VITE_SUPABASE_URL, VITE_SUPABASE_ANON_KEY
+    ├── .env.example
+    └── src/
+        ├── App.tsx               # Route tree
+        ├── main.tsx
+        ├── api/                  # Axios API clients
+        ├── components/           # Layout, ProtectedRoute
+        ├── hooks/                # useSupabaseAuth, usePolling, useSessionReady
+        ├── lib/                  # supabaseClient.ts, axios.ts, slug.ts
+        ├── pages/                # All page components
+        ├── styles/               # Global CSS
+        └── types/                # Shared TypeScript types (index.ts)
+
+--------------------------------------------------------------------------------
+3. DATABASE SCHEMA  (database/schema.sql)
+--------------------------------------------------------------------------------
+
+Tables:
+  users                 — id (UUID = Supabase auth.users.id), email, name, avatar_url
+  organizations         — id, name, slug
+  organization_members  — user_id + org_id composite PK, role
+  projects              — id, user_id (FK→users), org_id (FK→organizations), name, api_key_prefix
+  queues                — id, project_id (FK→projects), name, concurrency_limit (default 5),
+                          is_paused (default false), default_retry_config (JSONB)
+  workers               — id, name (UNIQUE), last_heartbeat_at, status (active|draining|offline)
+  jobs                  — id, queue_id (FK→queues), status (pending|scheduled|claimed|running|
+                          completed|failed|dead), priority (SMALLINT), scheduled_at,
+                          next_retry_at, locked_at, locked_by, attempt_count, max_attempts,
+                          retry_config (JSONB), payload (JSONB), last_error
+  job_attempts          — id (BIGSERIAL), job_id, attempt_number, worker_name, started_at,
+                          finished_at, error_stack
+  dead_letter_entries   — id, job_id, original_payload (JSONB), error, died_at
+
+Key indexes:
+  idx_jobs_poller       — (queue_id, priority DESC, scheduled_at) WHERE status IN (pending, scheduled)
+  idx_jobs_reaper       — (status, locked_at) WHERE status = claimed
+  idx_queues_project_name — UNIQUE (project_id, name)
+  idx_jobs_user_lookup  — (queue_id)
+  idx_job_attempts_job_id — (job_id, started_at DESC)
+
+Triggers:
+  set_updated_at()      — auto-updates updated_at column on users, organizations, projects, jobs
+
+Note: VARCHAR + CHECK constraints used instead of PG enum types for full
+Hibernate @Enumerated(STRING) compatibility.
+
+--------------------------------------------------------------------------------
+4. BACKEND — ENTITIES  (backend/src/main/java/com/jobscheduler/entity/)
+--------------------------------------------------------------------------------
+
+Job.java
+  - Fields: id (UUID), queue (ManyToOne→Queue), status (JobStatus enum), priority,
+    scheduledAt, nextRetryAt, lockedAt, lockedBy, attemptCount, maxAttempts,
+    retryConfig (JSONB Map), payload (JSONB Map), lastError, createdAt, updatedAt
+  - OneToMany → JobAttempt (cascade ALL)
+  - Enum JobStatus: pending, scheduled, claimed, running, completed, failed, dead
+  - Uses hypersistence-utils JsonBinaryType for JSONB columns
+
+Queue.java
+  - Fields: id, project (ManyToOne→Project), name, concurrencyLimit, isPaused,
+    defaultRetryConfig (JSONB Map)
+
+Project.java
+  - Fields: id, user (ManyToOne→User), org (ManyToOne→Organization), name, apiKeyPrefix
+
+User.java
+  - Fields: id (UUID = Supabase sub claim), email, name, avatarUrl
+
+Organization.java / OrganizationMember.java
+  - Standard org + membership model (role-based)
+
+Worker.java
+  - Fields: id, name (UNIQUE), lastHeartbeatAt, status (WorkerStatus enum: active, draining, offline)
+
+JobAttempt.java
+  - Fields: id (Long), job (ManyToOne), attemptNumber, workerName, startedAt, finishedAt, errorStack
+
+DeadLetterEntry.java
+  - Fields: id, job (ManyToOne), originalPayload (JSONB), error, diedAt
+
+--------------------------------------------------------------------------------
+5. BACKEND — REPOSITORIES  (backend/src/main/java/com/jobscheduler/repository/)
+--------------------------------------------------------------------------------
+
+JobRepository         — custom queries: claimJobs (SELECT FOR UPDATE SKIP LOCKED),
+                        markRunning, findByQueueIdAndStatus, findByUserId,
+                        countByStatusForQueues, promoteScheduledJobs, findStaleClaimed
+QueueRepository       — findByProjectId, findByIdAndProjectId, findAllActive, findByUserId,
+                        existsByProjectIdAndName, upsertHeartbeat
+ProjectRepository     — findByUserIdOrderByCreatedAtDesc, findByIdAndUserId
+WorkerRepository      — findStaleWorkers, upsertHeartbeat
+JobAttemptRepository  — findByJobIdOrderByStartedAtDesc
+DeadLetterRepository  — standard CRUD
+OrganizationRepository / UserRepository — standard CRUD
+
+--------------------------------------------------------------------------------
+6. BACKEND — SERVICES  (backend/src/main/java/com/jobscheduler/service/)
+--------------------------------------------------------------------------------
+
+JobService.java
+  - enqueue()        : creates Job with status=pending or scheduled depending on scheduledAt
+  - listByQueue()    : paginated query, optional status filter
+  - listByUser()     : paginated, cross-queue view for a user
+  - get()            : fetch single job
+  - getAttempts()    : fetch all JobAttempts for a job
+  - claimJobs()      : SELECT FOR UPDATE SKIP LOCKED — atomically claims N jobs
+  - markRunning()    : transitions claimed → running
+  - completeJob()    : records attempt, sets status=completed
+  - failJob()        : records attempt, applies retry logic or moves to dead
+  - cancelJob()      : sets status=dead (not allowed on running/claimed)
+  - requeueDeadJob() : resets dead/failed job back to pending with attempt_count=0
+  - resetStuckJob()  : called by Reaper, resets stuck claimed jobs to pending
+  - calculateNextRetry() : supports exponential (default, with jitter), linear, fixed strategies
+  - effectiveMaxAttempts(): cascading priority — job retryConfig > queue defaultRetryConfig > job.maxAttempts
+  - moveToDead()     : creates DeadLetterEntry when retries exhausted
+
+ProjectService.java
+  - listForUser(), getForUser(), create(), rename(), delete()
+  - generateKeyPrefix() : generates "js_" + 8-char random hex prefix
+
+QueueService.java
+  - listForProject(), getForProject(), create(), update(), pause(), resume(), delete()
+  - verifyOwnership() : checks project belongs to requesting user
+
+--------------------------------------------------------------------------------
+7. BACKEND — CONTROLLERS  (backend/src/main/java/com/jobscheduler/controller/)
+--------------------------------------------------------------------------------
+
+JobController         — /api/queues/{queueId}/jobs
+  POST   /api/queues/{queueId}/jobs            enqueue a job
+  GET    /api/queues/{queueId}/jobs            list jobs (status filter + pagination)
+  GET    /api/jobs                             list all jobs for current user (paginated)
+  GET    /api/jobs/{jobId}                     get single job
+  GET    /api/jobs/{jobId}/attempts            get all attempts for a job
+  POST   /api/jobs/{jobId}/cancel              cancel a pending/scheduled job
+  POST   /api/jobs/{jobId}/requeue             re-queue a dead/failed job
+
+ProjectController     — /api/projects
+  GET    /api/projects                         list user's projects
+  GET    /api/projects/{id}                    get single project
+  POST   /api/projects                         create project
+  PUT    /api/projects/{id}                    rename project
+  DELETE /api/projects/{id}                    delete project
+
+QueueController       — /api/projects/{projectId}/queues
+  GET    /api/projects/{projectId}/queues                          list queues
+  GET    /api/projects/{projectId}/queues/{queueId}               get single queue
+  POST   /api/projects/{projectId}/queues                         create queue
+  PATCH  /api/projects/{projectId}/queues/{queueId}               update (concurrency/pause/retry)
+  POST   /api/projects/{projectId}/queues/{queueId}/pause         pause queue
+  POST   /api/projects/{projectId}/queues/{queueId}/resume        resume queue
+  DELETE /api/projects/{projectId}/queues/{queueId}               delete queue
+
+DashboardController   — GET /api/dashboard
+  Returns: job counts by status, total jobs/queues/projects, all workers with heartbeat
+
+GlobalExceptionHandler
+  - EntityNotFoundException   → 404
+  - IllegalArgumentException  → 400
+  - IllegalStateException     → 409
+  - MethodArgumentNotValidException → 422 with field error map
+  - Exception (catch-all)     → 500
+
+--------------------------------------------------------------------------------
+8. BACKEND — DTOs  (backend/src/main/java/com/jobscheduler/dto/)
+--------------------------------------------------------------------------------
+
+JobRequest      — payload, priority, scheduledAt, maxAttempts, retryConfig
+JobResponse     — all Job fields as flat record, static from(Job) factory
+ProjectRequest  — name (validated)
+ProjectResponse — id, name, apiKeyPrefix, createdAt, queueCount
+QueueRequest    — name, concurrencyLimit, defaultRetryConfig
+QueueResponse   — id, projectId, name, concurrencyLimit, isPaused, defaultRetryConfig
+DashboardResponse — jobCountsByStatus (Map), totalJobs, totalQueues, totalProjects, workers list
+PageResponse<T> — content, totalElements, totalPages, page, size
+
+--------------------------------------------------------------------------------
+9. BACKEND — SECURITY  (backend/src/main/java/com/jobscheduler/security/)
+--------------------------------------------------------------------------------
+
+SecurityConfig.java
+  - Stateless session (no HTTP session)
+  - CSRF disabled
+  - CORS: configured via cors.allowed-origins property
+    Allowed origins: http://localhost:5173, http://localhost:3000
+    Allowed methods: GET, POST, PUT, PATCH, DELETE, OPTIONS
+    Allowed headers: Authorization, Content-Type, Accept
+    Exposed headers: X-Total-Count
+  - Public endpoints: /actuator/health, /actuator/info, OPTIONS /**
+  - All other requests require authentication
+  - Returns 401 (not 302) for unauthenticated requests
+
+JwtService.java
+  - Fetches Supabase JWKS at startup from:
+    https://zqoyyspgigcugjpnmwus.supabase.co/auth/v1/.well-known/jwks.json
+  - Validates ES256 (ECDSA P-256) signed JWTs, no secret needed
+  - Caches PublicKey objects by kid; supports fallback to single key
+  - Extracts: userId (sub claim), email, name (from user_metadata), avatarUrl
+
+JwtAuthenticationFilter.java
+  - OncePerRequestFilter — runs on every request
+  - Extracts Bearer token from Authorization header
+  - On valid token: auto-provisions User record on first login, syncs name/avatar
+  - Populates UserContext (ThreadLocal) and Spring SecurityContext
+  - Always clears ThreadLocal + SecurityContext in finally block
+
+UserContext.java
+  - ThreadLocal<User> holder — set by filter, consumed by controllers/services
+
+--------------------------------------------------------------------------------
+10. BACKEND — BACKGROUND WORKERS  (backend/src/main/java/com/jobscheduler/worker/)
+--------------------------------------------------------------------------------
+
+CronScheduler.java
+  - promoteScheduledJobs()  : every 10 s — flips scheduled→pending for jobs whose
+                              scheduled_at has passed
+  - heartbeat()             : every 15 s — upserts worker heartbeat into workers table
+  - markOffline()           : @PreDestroy — marks worker offline on graceful shutdown
+
+JobPoller.java
+  - poll()                  : every 2 s — iterates all active (non-paused) queues,
+                              respects per-queue Semaphore (concurrencyLimit permits)
+  - executeAsync()          : @Async — marks job running, calls processJob(), then
+                              completeJob() or failJob()
+  - processJob()            : stub — simulates 100–500 ms work (replace with real dispatch)
+  - Per-queue ConcurrentHashMap<UUID, Semaphore> prevents over-saturation
+
+Reaper.java
+  - reap()                  : every 60 s
+    - reaperSweepJobs()     : finds claimed jobs locked > 5 min, resets to pending
+    - reaperSweepWorkers()  : marks workers with no heartbeat in 60 s as offline
+
+--------------------------------------------------------------------------------
+11. BACKEND — CONFIGURATION  (backend/src/main/resources/application.properties)
+--------------------------------------------------------------------------------
+
+server.port=8081
+spring.datasource.url=jdbc:postgresql://aws-0-ap-southeast-1.pooler.supabase.com:6543/postgres
+  ?user=postgres.zqoyyspgigcugjpnmwus&password=Pratik@216029
+spring.jpa.hibernate.ddl-auto=validate   (schema managed manually via schema.sql)
+supabase.jwks.url=https://zqoyyspgigcugjpnmwus.supabase.co/auth/v1/.well-known/jwks.json
+spring.task.execution.pool.core-size=4
+spring.task.execution.pool.max-size=16
+spring.task.execution.pool.queue-capacity=100
+worker.name=spring-boot-instance-1
+cors.allowed-origins=http://localhost:5173,http://localhost:3000
+management.endpoints.web.exposure.include=health,info,metrics
+
+Backend Maven dependencies:
+  spring-boot-starter-web, data-jpa, security, validation, actuator
+  postgresql driver
+  jjwt-api/impl/jackson 0.12.6  (JWT validation)
+  hypersistence-utils-hibernate-63 3.7.6  (JSONB support)
+  jackson-databind
+  lombok
+
+--------------------------------------------------------------------------------
+12. FRONTEND — PAGES  (frontend/src/pages/)
+--------------------------------------------------------------------------------
+
+LoginPage.tsx
+  - Public page; Google + GitHub OAuth buttons via useSupabaseAuth
+  - Redirects to / if session already exists
+
+AuthCallbackPage.tsx
+  - OAuth redirect landing page
+  - Waits for Supabase to parse session from URL, then navigates to / or /login
+
+DashboardPage.tsx
+  - Polls every 5 s via usePolling
+  - Shows: 4 stat cards (total jobs, projects, queues, active workers)
+  - Job status breakdown grid + stacked progress bar
+  - Workers table with name, status badge, last heartbeat timestamp
+
+ProjectsPage.tsx
+  - Polls every 15 s
+  - Grid of project cards with queue count, slug preview, created date
+  - Inline "New Project" form with live slug preview
+  - Delete with confirmation
+
+QueuesPage.tsx
+  - URL param: :projectName (slug)
+  - Resolves slug → project ID via projectsApi.list() + findBySlug()
+  - Polls every 10 s
+  - Lists queues with concurrency, retry config, active/paused badge
+  - Inline "New Queue" form (name + concurrency)
+  - Pause/Resume toggle, Delete
+
+JobsPage.tsx
+  - URL params: :projectName (slug), :queueName (slug) — both optional
+  - If both present: queue-specific view; if absent: global /jobs view
+  - Polls every 4 s
+  - Status filter buttons (All + each status)
+  - Paginated table (20 per page) with expandable rows showing payload, lastError, lockedBy
+  - Inline "Enqueue Job" form with JSON textarea + validation
+  - Cancel (pending/scheduled) and Requeue (dead/failed) actions
+
+--------------------------------------------------------------------------------
+13. FRONTEND — COMPONENTS  (frontend/src/components/)
+--------------------------------------------------------------------------------
+
+Layout.tsx
+  - Sidebar with logo, nav links (Dashboard, Projects, All Jobs), user info, sign-out
+  - NavLink active state with indigo highlight
+  - Renders <Outlet /> for nested routes
+
+ProtectedRoute.tsx
+  - Wraps protected routes; spinner while loading, Navigate to /login if no session
+
+--------------------------------------------------------------------------------
+14. FRONTEND — HOOKS  (frontend/src/hooks/)
+--------------------------------------------------------------------------------
+
+useSupabaseAuth.ts
+  - Central auth hook; wraps supabase.auth.getSession + onAuthStateChange
+  - Returns: session, user (AuthUser shape), loading, signInWithGoogle,
+    signInWithGitHub, signOut
+
+usePolling.ts
+  - Runs fn() immediately then on every intervalMs
+  - Accepts enabled flag (pauses when false, e.g. session not ready)
+  - Ref-based to always call latest closure
+
+useSessionReady.ts
+  - Returns boolean true once a valid Supabase session is confirmed
+  - Used to gate API calls — prevents 401s on page load before token is available
+
+--------------------------------------------------------------------------------
+15. FRONTEND — API CLIENTS  (frontend/src/api/)
+--------------------------------------------------------------------------------
+
+All clients use a shared Axios instance (lib/axios.ts) that:
+  - Baseurl = /api (proxied by Vite dev server to http://localhost:8081)
+  - Automatically attaches Authorization: Bearer <token> from Supabase session
+
+dashboard.ts  — dashboardApi.get()
+projects.ts   — projectsApi: list, get, create, rename, delete
+queues.ts     — queuesApi: list, get, create, update, pause, resume, delete
+jobs.ts       — jobsApi: listByQueue, listMine, get, attempts, enqueue, cancel, requeue
+
+--------------------------------------------------------------------------------
+16. FRONTEND — TYPES  (frontend/src/types/index.ts)
+--------------------------------------------------------------------------------
+
+AuthUser, Project, Queue, RetryConfig, Job, JobAttempt, WorkerSummary,
+DashboardData, Page<T>, JobStatus (union type), WorkerStatus (union type)
+
+--------------------------------------------------------------------------------
+17. FRONTEND — ROUTING  (frontend/src/App.tsx)
+--------------------------------------------------------------------------------
+
+/login                                        — public (LoginPage)
+/auth/callback                                — public (AuthCallbackPage)
+/ (index)                                     — protected (DashboardPage)
+/projects                                     — protected (ProjectsPage)
+/projects/:projectName                        — protected (QueuesPage)
+/projects/:projectName/queues/:queueName/jobs — protected (JobsPage — queue view)
+/jobs                                         — protected (JobsPage — global view)
+* → redirect to /
+
+All protected routes wrapped in ProtectedRoute > Layout (sidebar shell).
+
+--------------------------------------------------------------------------------
+18. FRONTEND — SLUG UTILITY  (frontend/src/lib/slug.ts)
+--------------------------------------------------------------------------------
+
+toSlug(name)     — converts project/queue name to URL-safe slug (lowercase, hyphens)
+findBySlug(list, slug) — finds a project or queue by matching its name slug
+
+--------------------------------------------------------------------------------
+19. SUPABASE PROJECT
+--------------------------------------------------------------------------------
+
+Project ref : zqoyyspgigcugjpnmwus
+Region      : ap-southeast-1
+JWKS URL    : https://zqoyyspgigcugjpnmwus.supabase.co/auth/v1/.well-known/jwks.json
+Auth        : Google OAuth + GitHub OAuth enabled
+Frontend env:
+  VITE_SUPABASE_URL      = https://zqoyyspgigcugjpnmwus.supabase.co
+  VITE_SUPABASE_ANON_KEY = sb_publishable_fHTSxTvTvoH4mbIHXS-fYA_hRzYkEGn
+
+--------------------------------------------------------------------------------
+20. HOW TO RUN
+--------------------------------------------------------------------------------
+
+Backend:
+  cd backend
+  mvn spring-boot:run
+  → Starts on http://localhost:8081
+
+Frontend:
+  cd frontend
+  npm install
+  npm run dev
+  → Starts on http://localhost:5173 (proxies /api → :8081)
+
+Database:
+  Run database/schema.sql once in Supabase SQL Editor.
+
+--------------------------------------------------------------------------------
+21. KNOWN DESIGN DECISIONS
+--------------------------------------------------------------------------------
+
+- No Docker / deployment config exists yet.
+- No tests written yet (test directory is empty).
+- JobPoller.processJob() is a stub (Thread.sleep simulation). Real job dispatch
+  should route by payload "type" to registered JobHandler beans.
+- Organization model exists in schema/entities but is not wired into the API yet
+  (no OrganizationController).
+- api_key_prefix on Project is generated but no API-key-based auth path exists yet.
+- Slug-based routing (projectName/queueName in URLs) resolved by fetching all
+  items and doing client-side slug match — not passed as a query param to backend.
+- CORS is applied to all paths (not just /api/**) so error responses (401, 500)
+  also carry correct CORS headers.
+
+================================================================================
+CHANGE LOG
+================================================================================
+
+2026-08-22  Initial context.txt created.
+            Captured full project state: DB schema, all entities, repositories,
+            services, controllers, DTOs, security layer, 3 background workers,
+            all frontend pages/components/hooks/API clients, routing, and types.
+
+================================================================================

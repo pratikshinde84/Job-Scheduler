@@ -35,16 +35,10 @@ export function useSupabaseAuth() {
   }
 
   useEffect(() => {
-    // 1. Resolve any existing session (handles page refresh + OAuth callback)
-    supabase.auth.getSession().then(({ data }) => {
-      setState({
-        session: data.session,
-        user: data.session?.user ? toAuthUser(data.session.user) : null,
-        loading: false,
-      })
-    })
-
-    // 2. Subscribe to subsequent auth state changes
+    // Subscribe FIRST so we never miss an auth event that fires before
+    // getSession() resolves. onAuthStateChange fires INITIAL_SESSION with
+    // the current session (or null) shortly after mount, which is the
+    // authoritative signal to set loading=false.
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       (_event, session) => {
         setState({
