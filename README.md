@@ -490,16 +490,16 @@ mvn test
 
 Below is a breakdown of how each evaluation criterion was satisfied in this project:
 
-| Criteria | Marks | Implementation Summary | Key Location / Code References |
-|---|---|---|---|
-| **System Architecture** | **20** | Multi-tier distributed system comprising React frontend, Spring Boot API, worker threads, PostgreSQL job queue, Redis sliding window rate limiter, and Supabase JWKS auth. | [`README.md (Architecture Diagram)`](#architecture-diagram), `CronScheduler.java`, `JobPoller.java` |
-| **Database Design** | **20** | Relational schema in PostgreSQL with JSONB columns for payloads/results/retry configs. Includes indexed poller queries (`idx_jobs_poller`), unique project/queue constraints, and dead-letter tables. | [`database/schema.sql`](database/schema.sql), [`README.md (ER Diagram)`](#er-diagram) |
-| **Backend Engineering** | **20** | Built on Java 21 & Spring Boot 3.3.2. Features 5 dynamic job executors (`Email`, `Notification`, `PdfExtract`, `Calculate`, `DemoTask`), clean Service-Repository patterns, and custom JWT authentication filter. | `backend/src/main/java/com/jobscheduler/` |
-| **Reliability & Concurrency** | **15** | Atomic job claiming using `SELECT FOR UPDATE SKIP LOCKED` to prevent double-processing. Per-queue Semaphore concurrency caps, automated Reaper thread for stuck job recovery, and exponential retry backoff. | `JobRepository.java`, `JobPoller.java`, `Reaper.java` |
-| **Frontend & UX** | **10** | Modern React 18 + TypeScript + Vite SPA with live polling dashboard, interactive job status grid, inbox notification panel, JSON payload auto-formatting modal, and bulk enqueue modal. | `frontend/src/` |
-| **API Design** | **5** | Clean RESTful conventions across 32 endpoints with standard HTTP status codes, structured RFC 9457 error responses, pagination, and `X-RateLimit-*` headers. | [`README.md (API Documentation)`](#api-documentation), `controller/` |
-| **Documentation** | **5** | Comprehensive documentation including Architecture Diagrams, ER Diagrams, State Diagrams, setup guide, design trade-offs matrix, and API references. | [`README.md`](README.md), [`context.txt`](context.txt) |
-| **Testing** | **5** | Automated unit and integration test suite using JUnit 5, Spring Boot Test, and Mockito for controllers and background worker schedulers. | `backend/src/test/java/com/jobscheduler/` |
+| Criteria | Implementation Summary | Key Location / Code References |
+|---|---|---|
+| **System Architecture** | Multi-tier distributed system comprising React frontend, Spring Boot API, worker threads, PostgreSQL job queue, Redis sliding window rate limiter, and Supabase JWKS auth. | [`README.md (Architecture Diagram)`](#architecture-diagram), `CronScheduler.java`, `JobPoller.java` |
+| **Database Design** | Relational schema in PostgreSQL with JSONB columns for payloads/results/retry configs. Includes indexed poller queries (`idx_jobs_poller`), unique project/queue constraints, and dead-letter tables. | [`database/schema.sql`](database/schema.sql), [`README.md (ER Diagram)`](#er-diagram) |
+| **Backend Engineering** | Built on Java 21 & Spring Boot 3.3.2. Features 5 dynamic job executors (`Email`, `Notification`, `PdfExtract`, `Calculate`, `DemoTask`), clean Service-Repository patterns, and custom JWT authentication filter. | `backend/src/main/java/com/jobscheduler/` |
+| **Reliability & Concurrency** | Atomic job claiming using `SELECT FOR UPDATE SKIP LOCKED` to prevent double-processing. Per-queue Semaphore concurrency caps, automated Reaper thread for stuck job recovery, and exponential retry backoff. | `JobRepository.java`, `JobPoller.java`, `Reaper.java` |
+| **Frontend & UX** | Modern React 18 + TypeScript + Vite SPA with live polling dashboard, interactive job status grid, inbox notification panel, JSON payload auto-formatting modal, and bulk enqueue modal. | `frontend/src/` |
+| **API Design** | Clean RESTful conventions across 32 endpoints with standard HTTP status codes, structured RFC 9457 error responses, pagination, and `X-RateLimit-*` headers. | [`README.md (API Documentation)`](#api-documentation), `controller/` |
+| **Documentation** | Comprehensive documentation including Architecture Diagrams, ER Diagrams, State Diagrams, setup guide, design trade-offs matrix, and API references. | [`README.md`](README.md), [`context.txt`](context.txt) |
+| **Testing** | Automated unit and integration test suite using JUnit 5, Spring Boot Test, and Mockito for controllers and background worker schedulers. | `backend/src/test/java/com/jobscheduler/` |
 
 ---
 
