@@ -1,5 +1,9 @@
+import { useState, useEffect, useCallback } from 'react'
 import { NavLink, Outlet, useNavigate } from 'react-router-dom'
 import { useSupabaseAuth } from '../hooks/useSupabaseAuth'
+import { notificationsApi } from '../api/notifications'
+import InboxPanel from './InboxPanel'
+import { useSessionReady } from '../hooks/useSessionReady'
 
 const NAV_ITEMS = [
   { to: '/',         label: 'Dashboard', icon: '▦' },
@@ -9,7 +13,29 @@ const NAV_ITEMS = [
 
 export default function Layout() {
   const { user, signOut } = useSupabaseAuth()
-  const navigate = useNavigate()
+  const navigate          = useNavigate()
+  const sessionReady      = useSessionReady()
+
+  const [showInbox, setShowInbox]   = useState(false)
+  const [unreadCount, setUnreadCount] = useState(0)
+
+  const refreshUnread = useCallback(async () => {
+    if (!sessionReady) return
+    try {
+      const count = await notificationsApi.unreadCount()
+      setUnreadCount(count)
+    } catch {
+      // silently ignore — inbox is non-critical
+    }
+  }, [sessionReady])
+
+  // Poll unread count every 10 s
+  useEffect(() => {
+    if (!sessionReady) return
+    refreshUnread()
+    const id = setInterval(refreshUnread, 10_000)
+    return () => clearInterval(id)
+  }, [sessionReady, refreshUnread])
 
   const handleSignOut = async () => {
     await signOut()
@@ -46,6 +72,21 @@ export default function Layout() {
               {item.label}
             </NavLink>
           ))}
+
+          {/* Inbox button */}
+          <button
+            style={styles.inboxBtn}
+            onClick={() => setShowInbox(v => !v)}
+            aria-label="Open inbox"
+          >
+            <span style={styles.navIcon}>📩</span>
+            <span style={{ flex: 1 }}>Inbox</span>
+            {unreadCount > 0 && (
+              <span style={styles.unreadBadge}>
+                {unreadCount > 99 ? '99+' : unreadCount}
+              </span>
+            )}
+          </button>
         </nav>
 
         {/* User info at bottom */}
@@ -73,6 +114,14 @@ export default function Layout() {
       <main style={styles.main}>
         <Outlet />
       </main>
+
+      {/* ── Inbox slide-in panel ──────────────────────────────── */}
+      {showInbox && (
+        <InboxPanel
+          onClose={() => setShowInbox(false)}
+          onRead={refreshUnread}
+        />
+      )}
     </div>
   )
 }
@@ -131,6 +180,32 @@ const styles: Record<string, React.CSSProperties> = {
     fontSize: 15,
     width: 18,
     textAlign: 'center' as const,
+    flexShrink: 0,
+  },
+  inboxBtn: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: 10,
+    padding: '9px 10px',
+    borderRadius: 7,
+    background: 'transparent',
+    border: 'none',
+    color: 'var(--text-muted)',
+    fontSize: 13,
+    fontWeight: 500,
+    cursor: 'pointer',
+    width: '100%',
+    textAlign: 'left' as const,
+    transition: 'background 0.12s, color 0.12s',
+  },
+  unreadBadge: {
+    background: 'var(--accent)',
+    color: '#fff',
+    borderRadius: 10,
+    padding: '1px 6px',
+    fontSize: 10,
+    fontWeight: 700,
+    marginLeft: 'auto',
     flexShrink: 0,
   },
   userSection: {

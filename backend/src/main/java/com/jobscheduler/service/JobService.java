@@ -111,6 +111,17 @@ public class JobService {
         jobRepository.save(job);
     }
 
+    // ── Result storage (called by executors before completeJob) ──────────────
+
+    @Transactional
+    public void storeResult(UUID jobId, Map<String, Object> result) {
+        jobRepository.findById(jobId).ifPresent(job -> {
+            job.setResult(result);
+            jobRepository.save(job);
+            log.info("Stored result for job {}: {}", jobId, result);
+        });
+    }
+
     @Transactional
     public void failJob(UUID jobId, String workerName, OffsetDateTime startedAt,
                         String errorMessage, String errorStack) {
@@ -166,14 +177,6 @@ public class JobService {
     }
 
     // ── Reaper helper (called by Reaper scheduler) ────────────────────────────
-
-    @Transactional
-    public void storeResult(UUID jobId, Map<String, Object> result) {
-        jobRepository.findById(jobId).ifPresent(job -> {
-            job.setResult(result);
-            jobRepository.save(job);
-        });
-    }
 
     @Transactional
     public void resetStuckJob(Job job) {

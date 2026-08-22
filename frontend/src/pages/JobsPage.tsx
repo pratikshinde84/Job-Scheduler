@@ -209,6 +209,132 @@ export default function JobsPage() {
 
 // ── Job row component ─────────────────────────────────────────────────────────
 
+/** Renders the result card for any executor type that stores a result. */
+function JobResult({ result }: { result: Record<string, unknown> }) {
+  // ── Calculate executor ─────────────────────────────────────────────────────
+  if ('operation' in result && 'values' in result && 'result' in result) {
+    return (
+      <div style={{ gridColumn: '1 / -1', ...resultCard('#16a34a', 'rgba(34,197,94,0.07)', 'rgba(34,197,94,0.3)') }}>
+        <p style={{ ...resultLabel, color: '#16a34a' }}>Calculation Result</p>
+        <div style={{ display: 'flex', gap: 24, flexWrap: 'wrap', alignItems: 'flex-end' }}>
+          <ResultKV label="Operation" value={String(result.operation)} mono accent />
+          <ResultKV label="Values"    value={`[${(result.values as number[]).join(', ')}]`} mono />
+          <div>
+            <span style={resultKvLabel}>Result</span>
+            <div style={{ fontFamily: 'var(--mono)', fontWeight: 800, fontSize: 26, color: '#16a34a' }}>
+              {Number(result.result).toLocaleString(undefined, { maximumFractionDigits: 10 })}
+            </div>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  // ── Demo Task executor ────────────────────────────────────────────────────
+  if ('message' in result && 'durationMs' in result) {
+    return (
+      <div style={{ gridColumn: '1 / -1', ...resultCard('#6366f1', 'rgba(99,102,241,0.07)', 'rgba(99,102,241,0.3)') }}>
+        <p style={{ ...resultLabel, color: '#6366f1' }}>Demo Task Completed</p>
+        <div style={{ display: 'flex', gap: 24, flexWrap: 'wrap', alignItems: 'flex-start' }}>
+          <ResultKV label="Status"   value={String(result.status ?? 'completed')} />
+          <ResultKV label="Duration" value={`${result.durationMs} ms`} mono />
+          <div style={{ flex: 1, minWidth: 180 }}>
+            <span style={resultKvLabel}>Message</span>
+            <div style={{ fontSize: 14, fontStyle: 'italic', color: 'var(--text)', marginTop: 2 }}>
+              "{String(result.message)}"
+            </div>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  // ── Notification executor ─────────────────────────────────────────────────
+  if ('channel' in result && 'deliveredAt' in result) {
+    const channelColor: Record<string, string> = {
+      'push': '#f59e0b', 'sms': '#3b82f6', 'in-app': '#10b981'
+    }
+    const ch = String(result.channel ?? 'in-app')
+    return (
+      <div style={{ gridColumn: '1 / -1', ...resultCard(channelColor[ch] ?? '#10b981', 'rgba(16,185,129,0.07)', 'rgba(16,185,129,0.3)') }}>
+        <p style={{ ...resultLabel, color: channelColor[ch] ?? '#10b981' }}>Notification Delivered</p>
+        <div style={{ display: 'flex', gap: 24, flexWrap: 'wrap', alignItems: 'flex-start' }}>
+          <ResultKV label="Status"  value={String(result.status ?? 'delivered')} />
+          <ResultKV label={result.userEmail ? 'Recipient' : 'User ID'}
+                    value={String(result.userEmail ?? result.userId ?? '—')} mono />
+          <ResultKV label="Channel" value={ch.toUpperCase()} mono accent />
+          <div style={{ flex: 1, minWidth: 180 }}>
+            <span style={resultKvLabel}>Message</span>
+            <div style={{ fontSize: 13, color: 'var(--text)', marginTop: 2 }}>
+              {String(result.message)}
+            </div>
+          </div>
+        </div>
+        <div style={{ fontSize: 11, color: 'var(--text-dim)', marginTop: 8 }}>
+          Delivered at {new Date(String(result.deliveredAt)).toLocaleString()}
+          {' — '}Stored in recipient&apos;s inbox
+        </div>
+      </div>
+    )
+  }
+
+  // ── PDF executor ──────────────────────────────────────────────────────────
+  if ('summary' in result && 'pageCount' in result) {
+    return (
+      <div style={{ gridColumn: '1 / -1', ...resultCard('#f97316', 'rgba(249,115,22,0.07)', 'rgba(249,115,22,0.3)') }}>
+        <p style={{ ...resultLabel, color: '#f97316' }}>PDF Extraction Complete</p>
+        <div style={{ display: 'flex', gap: 24, flexWrap: 'wrap', marginBottom: 10 }}>
+          <ResultKV label="File"      value={String(result.fileName)} mono />
+          <ResultKV label="Pages"     value={String(result.pageCount)} mono />
+          <ResultKV label="Words"     value={Number(result.wordCount).toLocaleString()} mono />
+          <ResultKV label="Size"      value={`${(Number(result.sizeBytes) / 1024).toFixed(1)} KB`} mono />
+        </div>
+        <div>
+          <span style={resultKvLabel}>Extracted Summary</span>
+          <pre style={{
+            marginTop: 6, fontFamily: 'var(--mono)', fontSize: 11,
+            background: 'var(--bg)', padding: '8px 10px', borderRadius: 6,
+            whiteSpace: 'pre-wrap', wordBreak: 'break-word',
+            maxHeight: 160, overflowY: 'auto', color: 'var(--text)',
+            border: '1px solid var(--border)',
+          }}>
+            {String(result.summary)}
+          </pre>
+        </div>
+      </div>
+    )
+  }
+
+  // ── Generic fallback ──────────────────────────────────────────────────────
+  return (
+    <div style={{ gridColumn: '1 / -1', ...resultCard('#6366f1', 'rgba(99,102,241,0.07)', 'rgba(99,102,241,0.3)') }}>
+      <p style={{ ...resultLabel, color: '#6366f1' }}>Job Result</p>
+      <pre style={{ fontFamily: 'var(--mono)', fontSize: 11, margin: 0 }}>
+        {JSON.stringify(result, null, 2)}
+      </pre>
+    </div>
+  )
+}
+
+// Helpers for result cards
+function resultCard(accent: string, bg: string, border: string): React.CSSProperties {
+  return { background: bg, border: `1px solid ${border}`, borderRadius: 8, padding: '12px 14px' }
+}
+const resultLabel: React.CSSProperties = { fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 10 }
+const resultKvLabel: React.CSSProperties = { fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', display: 'block' }
+
+function ResultKV({ label, value, mono, accent }: { label: string; value: string; mono?: boolean; accent?: boolean }) {
+  return (
+    <div>
+      <span style={resultKvLabel}>{label}</span>
+      <div style={{ fontFamily: mono ? 'var(--mono)' : undefined, fontWeight: 600, fontSize: 14,
+                    color: accent ? 'var(--accent)' : 'var(--text)', marginTop: 2 }}>
+        {value}
+      </div>
+    </div>
+  )
+}
+
 function JobRow({ job, onCancel, onRequeue }: {
   job: Job
   onCancel: (id: string) => void
@@ -254,6 +380,10 @@ function JobRow({ job, onCancel, onRequeue }: {
                 <p style={styles.detailLabel}>Payload</p>
                 <pre style={styles.pre}>{JSON.stringify(job.payload, null, 2)}</pre>
               </div>
+
+              {/* Job result — adapts per executor type */}
+              {job.result && <JobResult result={job.result} />}
+
               {job.lastError && (
                 <div>
                   <p style={styles.detailLabel}>Last Error</p>

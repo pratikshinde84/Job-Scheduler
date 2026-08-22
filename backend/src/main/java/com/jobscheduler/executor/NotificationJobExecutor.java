@@ -1,28 +1,42 @@
 package com.jobscheduler.executor;
 
 import com.jobscheduler.entity.Job;
+import com.jobscheduler.entity.Notification;
+import com.jobscheduler.entity.User;
+import com.jobscheduler.repository.NotificationRepository;
+import com.jobscheduler.repository.UserRepository;
+import com.jobscheduler.service.JobService;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
+import java.time.Instant;
+import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.Optional;
 
 /**
  * NotificationJobExecutor
  *
- * Creates / sends a notification message to a user.
- * In production, plug in your push-notification provider
- * (FCM, APNs, WebSockets, etc.) in place of the log statements.
+ * Looks up a user by email, sends them an in-app / push / sms notification
+ * by storing it in the notifications table (inbox), and stores the delivery
+ * result back on the job record.
  *
  * Expected payload:
  * {
- *   "userId"  : 101                       — target user ID (required)
- *   "message" : "Your job is completed"   — notification text (required)
- *   "channel" : "push"                    — delivery channel: push | sms | in-app (optional, default: in-app)
+ *   "userEmail" : "user@example.com"         -- recipient email (required)
+ *   "message"   : "Your job is completed"    -- notification body  (required)
+ *   "channel"   : "in-app"                   -- push | sms | in-app (default: in-app)
  * }
  */
 @Slf4j
 @Component
+@RequiredArgsConstructor
 public class NotificationJobExecutor implements JobExecutor {
+
+    private final UserRepository         userRepository;
+    private final NotificationRepository notificationRepository;
+    private final JobService             jobService;
 
     private static final String DEFAULT_CHANNEL = "in-app";
 
@@ -35,53 +49,65 @@ public class NotificationJobExecutor implements JobExecutor {
     public void execute(Job job) throws Exception {
         Map<String, Object> payload = job.getPayload();
 
-        Object userIdRaw = payload.get("userId");
-        if (userIdRaw == null) {
-            throw new IllegalArgumentException("NotificationJobExecutor: 'userId' field is required");
+        String userEmail = getString(payload, "userEmail");
+        if (userEmail == null || userEmail.isBlank()) {
+            throw new IllegalArgumentException(
+                    "NotificationJobExecutor: 'userEmail' is required");
         }
-        long userId = ((Number) userIdRaw).longValue();
 
         String message = getString(payload, "message");
         if (message == null || message.isBlank()) {
-            throw new IllegalArgumentException("NotificationJobExecutor: 'message' field is required");
+            throw new IllegalArgumentException(
+                    "NotificationJobExecutor: 'message' is required");
         }
 
         String channel = getString(payload, "channel");
         if (channel == null || channel.isBlank()) channel = DEFAULT_CHANNEL;
 
-        log.info("[NotificationJobExecutor] Job {} — Sending {} notification to userId={}",
-                job.getId(), channel, userId);
-
-        // ── Simulate notification delivery ───────────────────────────────────
-        // Replace with real FCM / APNs / WebSocket call here.
-        switch (channel.toLowerCase()) {
-            case "push"   -> simulatePush(userId, message);
-            case "sms"    -> simulateSms(userId, message);
-            default       -> simulateInApp(userId, message);
+        // Look up recipient by email
+        Optional<User> recipientOpt = userRepository.findByEmail(userEmail);
+        if (recipientOpt.isEmpty()) {
+            throw new IllegalArgumentException(
+                    "NotificationJobExecutor: no user found with email '" + userEmail + "'");
         }
+        User recipient = recipientOpt.get();
 
-        log.info("[NotificationJobExecutor] Job {} — Notification delivered (channel={}, userId={})",
-                job.getId(), channel, userId);
+        log.info("[NotificationJobExecutor] Job {} -- Sending {} notification to {}",
+                job.getId(), channel, userEmail);
+
+        // Simulate channel-specific delivery (replace with real FCM/APNs/SMS)
+        Thread.sleep(deliveryDelayMs(channel));
+
+        // Persist to inbox
+        Notification notification = Notification.builder()
+                .user(recipient)
+                .title("Job Scheduler Notification")
+                .message(message)
+                .channel(channel)
+                .build();
+        notificationRepository.save(notification);
+
+        Instant deliveredAt = Instant.now();
+        log.info("[NotificationJobExecutor] Job {} -- Delivered via {} to {}",
+                job.getId(), channel, userEmail);
+
+        // Store result on the job
+        Map<String, Object> result = new LinkedHashMap<>();
+        result.put("status",      "delivered");
+        result.put("userEmail",   userEmail);
+        result.put("channel",     channel);
+        result.put("message",     message);
+        result.put("deliveredAt", deliveredAt.toString());
+        jobService.storeResult(job.getId(), result);
     }
 
-    // ── simulated delivery methods (replace with real implementations) ────────
-
-    private void simulatePush(long userId, String message) throws InterruptedException {
-        log.info("[NotificationJobExecutor]   [PUSH]   → userId={} msg='{}'", userId, message);
-        Thread.sleep(200);
+    private long deliveryDelayMs(String channel) {
+        return switch (channel.toLowerCase()) {
+            case "push" -> 200;
+            case "sms"  -> 250;
+            default     -> 100;
+        };
     }
-
-    private void simulateSms(long userId, String message) throws InterruptedException {
-        log.info("[NotificationJobExecutor]   [SMS]    → userId={} msg='{}'", userId, message);
-        Thread.sleep(250);
-    }
-
-    private void simulateInApp(long userId, String message) throws InterruptedException {
-        log.info("[NotificationJobExecutor]   [IN-APP] → userId={} msg='{}'", userId, message);
-        Thread.sleep(100);
-    }
-
-    // ── helpers ──────────────────────────────────────────────────────────────
 
     private String getString(Map<String, Object> payload, String key) {
         Object v = payload.get(key);

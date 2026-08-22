@@ -1,7 +1,8 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { projectsApi } from '../api/projects'
 import { queuesApi } from '../api/queues'
 import { jobsApi } from '../api/jobs'
+import api from '../lib/axios'
 import type { Project, Queue } from '../types'
 
 // ── Executor field definitions ────────────────────────────────────────────────
@@ -9,13 +10,13 @@ import type { Project, Queue } from '../types'
 interface FieldDef {
   key: string
   label: string
-  type: 'text' | 'email' | 'number' | 'boolean' | 'select' | 'textarea'
+  type: 'text' | 'email' | 'number' | 'boolean' | 'select' | 'textarea' | 'pdf-upload'
   placeholder?: string
   options?: string[]
   defaultValue?: unknown
   required?: boolean
   hint?: string
-  schemaType?: string   // shown in schema panel e.g. "string", "number", "boolean"
+  schemaType?: string
 }
 
 interface ExecutorDef {
@@ -24,110 +25,102 @@ interface ExecutorDef {
   fields: FieldDef[]
 }
 
-/**
- * All queue name variants that map to each executor.
- * Covers both the exact executor class name AND common short names
- * users might create (e.g. "email", "Email", "Demo-Task", "demo_task" etc.)
- */
 const EXECUTOR_DEFS: Record<string, ExecutorDef> = {
   // ── Email ──────────────────────────────────────────────────────────────────
   email: {
     title: 'Email Job',
-    description: 'Simulates sending an email to a recipient via SMTP.',
-    fields: [
-      { key: 'to',      label: 'To',      type: 'email',    placeholder: 'user@example.com',      required: true,  schemaType: 'string (email)' },
-      { key: 'subject', label: 'Subject', type: 'text',     placeholder: 'Welcome!',               required: true,  schemaType: 'string' },
-      { key: 'body',    label: 'Body',    type: 'textarea', placeholder: 'Email body text…',       required: true,  schemaType: 'string' },
-    ],
-  },
-  emailjobexecutor: { title: 'Email Job', description: 'Simulates sending an email to a recipient via SMTP.',
+    description: 'Sends an email to a recipient via SMTP.',
     fields: [
       { key: 'to',      label: 'To',      type: 'email',    placeholder: 'user@example.com', required: true, schemaType: 'string (email)' },
       { key: 'subject', label: 'Subject', type: 'text',     placeholder: 'Welcome!',          required: true, schemaType: 'string' },
-      { key: 'body',    label: 'Body',    type: 'textarea', placeholder: 'Email body text…',  required: true, schemaType: 'string' },
+      { key: 'body',    label: 'Body',    type: 'textarea', placeholder: 'Email body…',       required: true, schemaType: 'string' },
+    ],
+  },
+  emailjobexecutor: {
+    title: 'Email Job', description: 'Sends an email to a recipient via SMTP.',
+    fields: [
+      { key: 'to',      label: 'To',      type: 'email',    placeholder: 'user@example.com', required: true, schemaType: 'string (email)' },
+      { key: 'subject', label: 'Subject', type: 'text',     placeholder: 'Welcome!',          required: true, schemaType: 'string' },
+      { key: 'body',    label: 'Body',    type: 'textarea', placeholder: 'Email body…',       required: true, schemaType: 'string' },
     ],
   },
 
   // ── Notification ───────────────────────────────────────────────────────────
   notification: {
     title: 'Notification Job',
-    description: 'Sends a push, SMS, or in-app notification to a user.',
+    description: 'Sends an in-app, push, or SMS notification to a user by their email address.',
     fields: [
-      { key: 'userId',  label: 'User ID', type: 'number',   placeholder: '101',                    required: true,  schemaType: 'number' },
-      { key: 'message', label: 'Message', type: 'textarea', placeholder: 'Your job is completed',  required: true,  schemaType: 'string' },
-      { key: 'channel', label: 'Channel', type: 'select',   options: ['in-app', 'push', 'sms'],    defaultValue: 'in-app', schemaType: '"in-app" | "push" | "sms"' },
+      { key: 'userEmail', label: 'Recipient Email', type: 'email', placeholder: 'user@example.com', required: true, schemaType: 'string (email)' },
+      { key: 'message',   label: 'Message',          type: 'textarea', placeholder: 'Your job is completed', required: true, schemaType: 'string' },
+      { key: 'channel',   label: 'Channel',           type: 'select', options: ['in-app', 'push', 'sms'], defaultValue: 'in-app', schemaType: '"in-app" | "push" | "sms"' },
     ],
   },
-  notificationjobexecutor: { title: 'Notification Job', description: 'Sends a push, SMS, or in-app notification to a user.',
+  notificationjobexecutor: {
+    title: 'Notification Job', description: 'Sends an in-app, push, or SMS notification to a user by their email address.',
     fields: [
-      { key: 'userId',  label: 'User ID', type: 'number',   placeholder: '101',                   required: true, schemaType: 'number' },
-      { key: 'message', label: 'Message', type: 'textarea', placeholder: 'Your job is completed', required: true, schemaType: 'string' },
-      { key: 'channel', label: 'Channel', type: 'select',   options: ['in-app', 'push', 'sms'],   defaultValue: 'in-app', schemaType: '"in-app" | "push" | "sms"' },
+      { key: 'userEmail', label: 'Recipient Email', type: 'email', placeholder: 'user@example.com', required: true, schemaType: 'string (email)' },
+      { key: 'message',   label: 'Message',          type: 'textarea', placeholder: 'Your job is completed', required: true, schemaType: 'string' },
+      { key: 'channel',   label: 'Channel',           type: 'select', options: ['in-app', 'push', 'sms'], defaultValue: 'in-app', schemaType: '"in-app" | "push" | "sms"' },
     ],
   },
 
   // ── Demo Task ──────────────────────────────────────────────────────────────
-  demo: {
+  'demo-task': {
     title: 'Demo Task',
-    description: 'Simulates a long-running task to test worker execution, concurrency, and retries.',
+    description: 'General-purpose background task. Waits 3 seconds, then completes with your message.',
     fields: [
-      { key: 'duration',   label: 'Duration (seconds)', type: 'number',  defaultValue: 10,   schemaType: 'number',
-        hint: 'How long the task should run. Each second = 2 work steps of 500 ms.' },
-      { key: 'shouldFail', label: 'Should Fail',         type: 'boolean', defaultValue: false, schemaType: 'boolean',
-        hint: 'If enabled, the job throws an error after running to trigger retry logic.' },
+      { key: 'message', label: 'Message', type: 'textarea',
+        placeholder: 'Hello from Demo Task',
+        defaultValue: 'Hello from Demo Task',
+        schemaType: 'string',
+        hint: 'This message will be logged and stored in the job result.' },
     ],
   },
-  'demo-task': {
-    title: 'Demo Task', description: 'Simulates a long-running task to test worker execution, concurrency, and retries.',
+  demo: {
+    title: 'Demo Task', description: 'General-purpose background task. Waits 3 seconds, then completes with your message.',
     fields: [
-      { key: 'duration',   label: 'Duration (seconds)', type: 'number',  defaultValue: 10,    schemaType: 'number',  hint: 'How long the task should run.' },
-      { key: 'shouldFail', label: 'Should Fail',         type: 'boolean', defaultValue: false, schemaType: 'boolean', hint: 'Throw an error to trigger retry logic.' },
+      { key: 'message', label: 'Message', type: 'textarea', placeholder: 'Hello from Demo Task', defaultValue: 'Hello from Demo Task', schemaType: 'string' },
     ],
   },
   demotask: {
-    title: 'Demo Task', description: 'Simulates a long-running task to test worker execution, concurrency, and retries.',
+    title: 'Demo Task', description: 'General-purpose background task. Waits 3 seconds, then completes with your message.',
     fields: [
-      { key: 'duration',   label: 'Duration (seconds)', type: 'number',  defaultValue: 10,    schemaType: 'number' },
-      { key: 'shouldFail', label: 'Should Fail',         type: 'boolean', defaultValue: false, schemaType: 'boolean' },
+      { key: 'message', label: 'Message', type: 'textarea', placeholder: 'Hello from Demo Task', defaultValue: 'Hello from Demo Task', schemaType: 'string' },
     ],
   },
   demotaskexecutor: {
-    title: 'Demo Task', description: 'Simulates a long-running task to test worker execution, concurrency, and retries.',
+    title: 'Demo Task', description: 'General-purpose background task. Waits 3 seconds, then completes with your message.',
     fields: [
-      { key: 'duration',   label: 'Duration (seconds)', type: 'number',  defaultValue: 10,    schemaType: 'number' },
-      { key: 'shouldFail', label: 'Should Fail',         type: 'boolean', defaultValue: false, schemaType: 'boolean' },
+      { key: 'message', label: 'Message', type: 'textarea', placeholder: 'Hello from Demo Task', defaultValue: 'Hello from Demo Task', schemaType: 'string' },
     ],
   },
 
-  // ── PDF ────────────────────────────────────────────────────────────────────
-  pdf: {
-    title: 'PDF Processor',
-    description: 'Downloads a PDF from a URL, validates it, and extracts its content.',
+  // ── PDF Extract ────────────────────────────────────────────────────────────
+  'pdf-extract': {
+    title: 'PDF Extractor',
+    description: 'Upload a PDF file — the worker extracts its text and stores a summary.',
     fields: [
-      { key: 'fileName', label: 'File Name', type: 'text', placeholder: 'resume.pdf',                       required: true, schemaType: 'string' },
-      { key: 'fileUrl',  label: 'File URL',  type: 'text', placeholder: 'https://example.com/resume.pdf',  required: true, schemaType: 'string (URL)',
-        hint: 'Must be a publicly accessible URL. Max file size: 20 MB.' },
+      { key: 'pdf-upload', label: 'PDF File', type: 'pdf-upload', required: true,
+        schemaType: 'file (.pdf, max 20 MB)',
+        hint: 'Select a PDF from your computer. It will be uploaded and processed by the worker.' },
     ],
   },
-  'pdf-extract': {
-    title: 'PDF Processor', description: 'Downloads a PDF from a URL, validates it, and extracts its content.',
+  pdf: {
+    title: 'PDF Extractor', description: 'Upload a PDF file — the worker extracts its text and stores a summary.',
     fields: [
-      { key: 'fileName', label: 'File Name', type: 'text', placeholder: 'resume.pdf',                      required: true, schemaType: 'string' },
-      { key: 'fileUrl',  label: 'File URL',  type: 'text', placeholder: 'https://example.com/resume.pdf', required: true, schemaType: 'string (URL)', hint: 'Max size: 20 MB.' },
+      { key: 'pdf-upload', label: 'PDF File', type: 'pdf-upload', required: true, schemaType: 'file (.pdf, max 20 MB)' },
     ],
   },
   pdfextract: {
-    title: 'PDF Processor', description: 'Downloads a PDF from a URL, validates it, and extracts its content.',
+    title: 'PDF Extractor', description: 'Upload a PDF file — the worker extracts its text and stores a summary.',
     fields: [
-      { key: 'fileName', label: 'File Name', type: 'text', placeholder: 'resume.pdf',                      required: true, schemaType: 'string' },
-      { key: 'fileUrl',  label: 'File URL',  type: 'text', placeholder: 'https://example.com/resume.pdf', required: true, schemaType: 'string (URL)' },
+      { key: 'pdf-upload', label: 'PDF File', type: 'pdf-upload', required: true, schemaType: 'file (.pdf, max 20 MB)' },
     ],
   },
   pdfjobexecutor: {
-    title: 'PDF Processor', description: 'Downloads a PDF from a URL, validates it, and extracts its content.',
+    title: 'PDF Extractor', description: 'Upload a PDF file — the worker extracts its text and stores a summary.',
     fields: [
-      { key: 'fileName', label: 'File Name', type: 'text', placeholder: 'resume.pdf',                      required: true, schemaType: 'string' },
-      { key: 'fileUrl',  label: 'File URL',  type: 'text', placeholder: 'https://example.com/resume.pdf', required: true, schemaType: 'string (URL)' },
+      { key: 'pdf-upload', label: 'PDF File', type: 'pdf-upload', required: true, schemaType: 'file (.pdf, max 20 MB)' },
     ],
   },
 
@@ -141,14 +134,15 @@ const EXECUTOR_DEFS: Record<string, ExecutorDef> = {
         schemaType: '"SUM" | "AVERAGE" | "MIN" | "MAX" | "MULTIPLY"' },
       { key: 'values', label: 'Values (comma-separated)', type: 'text',
         placeholder: '10, 20, 30, 40', required: true, schemaType: 'number[]',
-        hint: 'Enter numbers separated by commas — they are sent as an array.' },
+        hint: 'Enter numbers separated by commas.' },
     ],
   },
   calculateexecutor: {
     title: 'Calculator', description: 'Performs a mathematical operation on a list of numbers.',
     fields: [
       { key: 'operation', label: 'Operation', type: 'select',
-        options: ['SUM', 'AVERAGE', 'MIN', 'MAX', 'MULTIPLY'], defaultValue: 'SUM', schemaType: '"SUM" | "AVERAGE" | "MIN" | "MAX" | "MULTIPLY"' },
+        options: ['SUM', 'AVERAGE', 'MIN', 'MAX', 'MULTIPLY'], defaultValue: 'SUM',
+        schemaType: '"SUM" | "AVERAGE" | "MIN" | "MAX" | "MULTIPLY"' },
       { key: 'values', label: 'Values (comma-separated)', type: 'text',
         placeholder: '10, 20, 30, 40', required: true, schemaType: 'number[]',
         hint: 'Enter numbers separated by commas.' },
@@ -156,19 +150,16 @@ const EXECUTOR_DEFS: Record<string, ExecutorDef> = {
   },
 }
 
-/** Normalise a queue name to a lookup key: lower-case, strip spaces/underscores/hyphens */
 function toKey(name: string) {
   return name.toLowerCase().replace(/[\s_-]+/g, '')
 }
 
-/** Find the executor def for a queue name, trying both exact and normalised forms */
 function getExecutorDef(queueName: string): ExecutorDef | null {
   const lower = queueName.toLowerCase()
   const norm  = toKey(queueName)
   return EXECUTOR_DEFS[lower] ?? EXECUTOR_DEFS[norm] ?? null
 }
 
-// ── JSON template builder ─────────────────────────────────────────────────────
 const DEFAULT_PAYLOAD = '{\n  \n}'
 
 function buildJsonTemplate(queueName: string): string {
@@ -176,6 +167,7 @@ function buildJsonTemplate(queueName: string): string {
   if (!def) return DEFAULT_PAYLOAD
   const obj: Record<string, unknown> = {}
   def.fields.forEach(f => {
+    if (f.type === 'pdf-upload') return  // handled separately
     if (f.key === 'values') { obj[f.key] = [10, 20, 30]; return }
     obj[f.key] = f.defaultValue ?? (f.type === 'number' ? 0 : f.type === 'boolean' ? false : '')
   })
@@ -210,9 +202,18 @@ export default function EnqueueJobModal({ lockedQueue, lockedProjectId, onClose,
   const [submitting, setSubmitting]   = useState(false)
   const [submitError, setSubmitError] = useState<string | null>(null)
 
+  // PDF upload state
+  const [pdfFile, setPdfFile]         = useState<File | null>(null)
+  const [uploading, setUploading]     = useState(false)
+  const [uploadError, setUploadError] = useState<string | null>(null)
+  const [uploadedUrl, setUploadedUrl] = useState<string | null>(null)
+  const [uploadedName, setUploadedName] = useState<string | null>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
+
   const selectedQueue   = lockedQueue ?? queues.find(q => q.id === selectedQueueId) ?? null
   const executorDef     = selectedQueue ? getExecutorDef(selectedQueue.name) : null
   const isExecutorQueue = !!executorDef
+  const isPdfQueue      = executorDef?.fields.some(f => f.type === 'pdf-upload') ?? false
 
   // Load projects
   useEffect(() => {
@@ -244,6 +245,7 @@ export default function EnqueueJobModal({ lockedQueue, lockedProjectId, onClose,
     if (def) {
       const defaults: Record<string, unknown> = {}
       def.fields.forEach(f => {
+        if (f.type === 'pdf-upload') return
         defaults[f.key] = f.key === 'values' ? '10, 20, 30' : (f.defaultValue ?? '')
       })
       setFieldValues(defaults)
@@ -253,13 +255,63 @@ export default function EnqueueJobModal({ lockedQueue, lockedProjectId, onClose,
     setJsonError(null)
     setSubmitError(null)
     setShowSchema(false)
+    setPdfFile(null)
+    setUploadedUrl(null)
+    setUploadedName(null)
+    setUploadError(null)
   }, [selectedQueueId, selectedQueue?.name])
 
-  // Build payload from field values
+  // ── PDF upload handler ────────────────────────────────────────────────────
+
+  const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    if (!file.name.toLowerCase().endsWith('.pdf')) {
+      setUploadError('Please select a PDF file.')
+      return
+    }
+    if (file.size > 20 * 1024 * 1024) {
+      setUploadError('File must be under 20 MB.')
+      return
+    }
+
+    setPdfFile(file)
+    setUploadError(null)
+    setUploadedUrl(null)
+    setUploading(true)
+
+    try {
+      const form = new FormData()
+      form.append('file', file)
+      const res = await api.post<{ fileName: string; fileUrl: string }>(
+        '/upload/pdf', form,
+        { headers: { 'Content-Type': 'multipart/form-data' } }
+      )
+      setUploadedUrl(res.data.fileUrl)
+      setUploadedName(res.data.fileName)
+    } catch {
+      setUploadError('Upload failed. Make sure the backend is running.')
+      setPdfFile(null)
+    } finally {
+      setUploading(false)
+    }
+  }
+
+  // ── Build payload ─────────────────────────────────────────────────────────
+
   function buildPayload(): Record<string, unknown> | null {
     if (isExecutorQueue) {
+      if (isPdfQueue) {
+        if (!uploadedUrl || !uploadedName) {
+          setUploadError('Please select and upload a PDF file first.')
+          return null
+        }
+        return { fileName: uploadedName, fileUrl: uploadedUrl }
+      }
+
       const result: Record<string, unknown> = {}
       for (const field of executorDef!.fields) {
+        if (field.type === 'pdf-upload') continue
         let val = fieldValues[field.key]
         if (field.type === 'number') val = Number(val) || 0
         if (field.type === 'boolean') val = Boolean(val)
@@ -292,7 +344,49 @@ export default function EnqueueJobModal({ lockedQueue, lockedProjectId, onClose,
   }
 
   // ── Field renderer ────────────────────────────────────────────────────────
+
   function renderField(field: FieldDef) {
+    // PDF upload is handled separately below
+    if (field.type === 'pdf-upload') {
+      return (
+        <div key={field.key} style={s.fieldGroup}>
+          <label style={s.fieldLabel}>
+            {field.label}
+            {field.required && <span style={{ color: 'var(--danger)', marginLeft: 3 }}>*</span>}
+            <span style={s.schemaTypePill}>{field.schemaType ?? field.type}</span>
+          </label>
+
+          <div style={s.filePickerArea} onClick={() => fileInputRef.current?.click()}>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".pdf,application/pdf"
+              style={{ display: 'none' }}
+              onChange={handleFileSelect}
+            />
+            {uploading ? (
+              <span style={{ color: 'var(--text-muted)', fontSize: 13 }}>Uploading…</span>
+            ) : uploadedUrl ? (
+              <div style={{ textAlign: 'center' }}>
+                <div style={{ fontSize: 28, marginBottom: 4 }}>📄</div>
+                <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>{uploadedName}</div>
+                <div style={{ fontSize: 11, color: 'var(--success)', marginTop: 2 }}>Uploaded successfully — click to change</div>
+              </div>
+            ) : (
+              <div style={{ textAlign: 'center' }}>
+                <div style={{ fontSize: 28, marginBottom: 4 }}>📂</div>
+                <div style={{ fontSize: 13, color: 'var(--text-muted)' }}>Click to select a PDF file</div>
+                <div style={{ fontSize: 11, color: 'var(--text-dim)', marginTop: 4 }}>Max 20 MB</div>
+              </div>
+            )}
+          </div>
+
+          {uploadError && <p style={s.errorText}>{uploadError}</p>}
+          {field.hint && !uploadError && <p style={s.fieldHint}>{field.hint}</p>}
+        </div>
+      )
+    }
+
     const value  = fieldValues[field.key] ?? field.defaultValue ?? ''
     const update = (v: unknown) => setFieldValues(prev => ({ ...prev, [field.key]: v }))
 
@@ -340,6 +434,7 @@ export default function EnqueueJobModal({ lockedQueue, lockedProjectId, onClose,
   }
 
   // ── Schema panel ──────────────────────────────────────────────────────────
+
   function renderSchema() {
     if (!executorDef) return null
     return (
@@ -360,7 +455,9 @@ export default function EnqueueJobModal({ lockedQueue, lockedProjectId, onClose,
           <tbody>
             {executorDef.fields.map(f => (
               <tr key={f.key}>
-                <td style={{ ...s.schemaTd, fontFamily: 'var(--mono)', fontWeight: 600 }}>{f.key}</td>
+                <td style={{ ...s.schemaTd, fontFamily: 'var(--mono)', fontWeight: 600 }}>
+                  {f.type === 'pdf-upload' ? 'fileName + fileUrl' : f.key}
+                </td>
                 <td style={{ ...s.schemaTd, color: 'var(--accent)' }}>{f.schemaType ?? f.type}</td>
                 <td style={s.schemaTd}>{f.required ? '✓' : '—'}</td>
                 <td style={{ ...s.schemaTd, color: 'var(--text-muted)' }}>
@@ -370,21 +467,24 @@ export default function EnqueueJobModal({ lockedQueue, lockedProjectId, onClose,
             ))}
           </tbody>
         </table>
-        {/* JSON example */}
-        <p style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 6, marginTop: 10, fontWeight: 600 }}>
-          EXAMPLE PAYLOAD
-        </p>
-        <pre style={s.schemaExample}>{buildJsonTemplate(selectedQueue!.name)}</pre>
+        {!isPdfQueue && (
+          <>
+            <p style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 6, marginTop: 10, fontWeight: 600 }}>
+              EXAMPLE PAYLOAD
+            </p>
+            <pre style={s.schemaExample}>{buildJsonTemplate(selectedQueue!.name)}</pre>
+          </>
+        )}
       </div>
     )
   }
 
   // ── Render ────────────────────────────────────────────────────────────────
+
   return (
     <div style={s.overlay} onClick={e => { if (e.target === e.currentTarget) onClose() }}>
       <div style={s.modal}>
 
-        {/* ── Header ── */}
         <div style={s.modalHeader}>
           <div>
             <h2 style={s.modalTitle}>Enqueue New Job</h2>
@@ -405,7 +505,6 @@ export default function EnqueueJobModal({ lockedQueue, lockedProjectId, onClose,
           </div>
         </div>
 
-        {/* ── Schema panel (slides in below header) ── */}
         {showSchema && renderSchema()}
 
         <form onSubmit={handleSubmit}>
@@ -445,18 +544,18 @@ export default function EnqueueJobModal({ lockedQueue, lockedProjectId, onClose,
               </div>
             )}
 
-            {/* Executor description banner */}
             {selectedQueue && executorDef && (
               <p style={s.executorDesc}>{executorDef.description}</p>
             )}
 
-            {/* ── Payload section ── */}
             {selectedQueue && (
               <div style={s.section}>
                 <div style={s.sectionHeader}>
                   <span style={s.sectionTitle}>Payload</span>
                   {isExecutorQueue
-                    ? <span style={s.sectionHint}>Fill in the fields — hover Schema for reference</span>
+                    ? <span style={s.sectionHint}>
+                        {isPdfQueue ? 'Select a PDF file to upload' : 'Fill in the fields below'}
+                      </span>
                     : <span style={s.sectionHint}>No predefined schema — edit JSON directly</span>
                   }
                 </div>
@@ -474,7 +573,6 @@ export default function EnqueueJobModal({ lockedQueue, lockedProjectId, onClose,
               </div>
             )}
 
-            {/* ── Options ── */}
             {selectedQueue && (
               <div style={s.section}>
                 <div style={s.sectionHeader}>
@@ -502,11 +600,11 @@ export default function EnqueueJobModal({ lockedQueue, lockedProjectId, onClose,
             {submitError && <p style={{ ...s.errorText, marginTop: 8 }}>{submitError}</p>}
           </div>
 
-          {/* ── Footer ── */}
           <div style={s.modalFooter}>
             <button type="button" className="btn-ghost" onClick={onClose}>Cancel</button>
-            <button type="submit" className="btn-primary" disabled={submitting || !selectedQueue}>
-              {submitting ? 'Enqueueing…' : 'Enqueue Job'}
+            <button type="submit" className="btn-primary"
+              disabled={submitting || !selectedQueue || (isPdfQueue && (!uploadedUrl || uploading))}>
+              {submitting ? 'Enqueueing…' : uploading ? 'Uploading…' : 'Enqueue Job'}
             </button>
           </div>
         </form>
@@ -549,8 +647,6 @@ const s: Record<string, React.CSSProperties> = {
     marginLeft: 8, background: 'rgba(99,102,241,0.15)', color: 'var(--accent)',
     borderRadius: 10, padding: '1px 7px', fontSize: 11, fontWeight: 600,
   },
-
-  // Schema panel
   schemaPanel: {
     background: 'var(--bg)', borderBottom: '1px solid var(--border)',
     padding: '14px 24px', flexShrink: 0,
@@ -570,7 +666,6 @@ const s: Record<string, React.CSSProperties> = {
     padding: '8px 10px', borderRadius: 6, border: '1px solid var(--border)',
     margin: 0, whiteSpace: 'pre', overflowX: 'auto',
   },
-
   modalBody: {
     padding: '14px 24px', overflowY: 'auto', flex: 1,
     display: 'flex', flexDirection: 'column',
@@ -579,7 +674,6 @@ const s: Record<string, React.CSSProperties> = {
     display: 'flex', justifyContent: 'flex-end', gap: 8,
     padding: '12px 24px', borderTop: '1px solid var(--border)', flexShrink: 0,
   },
-
   fieldGroup:    { marginBottom: 14 },
   fieldList:     { display: 'flex', flexDirection: 'column' },
   fieldLabel: {
@@ -614,6 +708,12 @@ const s: Record<string, React.CSSProperties> = {
     position: 'absolute', top: 2, width: 20, height: 20,
     borderRadius: '50%', background: '#fff', transition: 'transform 0.2s',
   },
+  filePickerArea: {
+    border: '2px dashed var(--border)', borderRadius: 10,
+    padding: '24px 16px', textAlign: 'center', cursor: 'pointer',
+    background: 'var(--bg)', transition: 'border-color 0.15s',
+    minHeight: 100, display: 'flex', alignItems: 'center', justifyContent: 'center',
+  },
   section: { marginTop: 2, paddingTop: 14, borderTop: '1px solid var(--border)' },
   sectionHeader: { display: 'flex', alignItems: 'baseline', gap: 8, marginBottom: 12 },
   sectionTitle:  { fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' },
@@ -625,6 +725,6 @@ const s: Record<string, React.CSSProperties> = {
     background: 'rgba(99,102,241,0.06)', borderRadius: 6,
     borderLeft: '3px solid var(--accent)',
   },
-  errorText: { color: 'var(--danger)', fontSize: 12 },
+  errorText: { color: 'var(--danger)', fontSize: 12, marginTop: 4 },
   loading:   { fontSize: 13, color: 'var(--text-muted)', margin: 0 },
 }

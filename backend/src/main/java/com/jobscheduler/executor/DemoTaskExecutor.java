@@ -1,25 +1,44 @@
 package com.jobscheduler.executor;
 
 import com.jobscheduler.entity.Job;
+import com.jobscheduler.service.JobService;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
+import java.time.Instant;
+import java.util.LinkedHashMap;
 import java.util.Map;
 
 /**
- * DemoTaskExecutor
+ * DemoTaskExecutor — General-purpose background task executor.
  *
- * Simulates a long-running task to test worker execution, concurrency, and retries.
+ * Proves the queue system works end-to-end:
+ *   1. Print "Demo Task Started"
+ *   2. Wait 3 seconds
+ *   3. Print the custom message from the payload
+ *   4. Mark COMPLETED and store result
  *
  * Expected payload:
  * {
- *   "duration"   : <int>     — how many seconds the task should run (default: 5)
- *   "shouldFail" : <boolean> — if true, the job throws an exception to trigger retry logic
+ *   "message" : "Hello from Demo Task"   — custom message (optional)
+ * }
+ *
+ * Stored result:
+ * {
+ *   "status"    : "completed",
+ *   "message"   : "Hello from Demo Task",
+ *   "startedAt" : "2026-08-22T12:00:00Z",
+ *   "finishedAt": "2026-08-22T12:00:03Z",
+ *   "durationMs": 3000
  * }
  */
 @Slf4j
 @Component
+@RequiredArgsConstructor
 public class DemoTaskExecutor implements JobExecutor {
+
+    private final JobService jobService;
 
     @Override
     public String queueName() {
@@ -29,40 +48,34 @@ public class DemoTaskExecutor implements JobExecutor {
     @Override
     public void execute(Job job) throws Exception {
         Map<String, Object> payload = job.getPayload();
-
-        int durationSeconds = getInt(payload, "duration", 5);
-        boolean shouldFail  = getBool(payload, "shouldFail", false);
-
-        log.info("[DemoTaskExecutor] Job {} — running for {} s, shouldFail={}",
-                job.getId(), durationSeconds, shouldFail);
-
-        // Simulate work in 500 ms chunks so logs are visible
-        int chunks = Math.max(1, durationSeconds * 2);
-        for (int i = 0; i < chunks; i++) {
-            Thread.sleep(500);
-            log.debug("[DemoTaskExecutor] Job {} — step {}/{}", job.getId(), i + 1, chunks);
+        String message = getString(payload, "message");
+        if (message == null || message.isBlank()) {
+            message = "Demo task executed successfully";
         }
 
-        if (shouldFail) {
-            throw new RuntimeException(
-                    "DemoTaskExecutor: intentional failure requested via shouldFail=true");
-        }
+        Instant startedAt = Instant.now();
+        log.info("[DemoTaskExecutor] Job {} -- Demo Task Started", job.getId());
 
-        log.info("[DemoTaskExecutor] Job {} completed successfully", job.getId());
+        // Simulate 3 seconds of work
+        Thread.sleep(3_000);
+
+        Instant finishedAt = Instant.now();
+        long durationMs = finishedAt.toEpochMilli() - startedAt.toEpochMilli();
+
+        log.info("[DemoTaskExecutor] Job {} -- {}", job.getId(), message);
+        log.info("[DemoTaskExecutor] Job {} -- Demo Task Completed in {}ms", job.getId(), durationMs);
+
+        Map<String, Object> result = new LinkedHashMap<>();
+        result.put("status",     "completed");
+        result.put("message",    message);
+        result.put("startedAt",  startedAt.toString());
+        result.put("finishedAt", finishedAt.toString());
+        result.put("durationMs", durationMs);
+        jobService.storeResult(job.getId(), result);
     }
 
-    // ── helpers ──────────────────────────────────────────────────────────────
-
-    private int getInt(Map<String, Object> payload, String key, int defaultVal) {
+    private String getString(Map<String, Object> payload, String key) {
         Object v = payload.get(key);
-        if (v instanceof Number n) return n.intValue();
-        return defaultVal;
-    }
-
-    private boolean getBool(Map<String, Object> payload, String key, boolean defaultVal) {
-        Object v = payload.get(key);
-        if (v instanceof Boolean b) return b;
-        if (v instanceof String s) return Boolean.parseBoolean(s);
-        return defaultVal;
+        return v != null ? v.toString() : null;
     }
 }

@@ -2,8 +2,10 @@ E:\Desktop\Job-Scheduler\backend\src\main\java\com\jobscheduler\config\RedisConf
 E:\Desktop\Job-Scheduler\backend\src\main\java\com\jobscheduler\controller\DashboardController.java
 E:\Desktop\Job-Scheduler\backend\src\main\java\com\jobscheduler\controller\GlobalExceptionHandler.java
 E:\Desktop\Job-Scheduler\backend\src\main\java\com\jobscheduler\controller\JobController.java
+E:\Desktop\Job-Scheduler\backend\src\main\java\com\jobscheduler\controller\NotificationController.java
 E:\Desktop\Job-Scheduler\backend\src\main\java\com\jobscheduler\controller\ProjectController.java
 E:\Desktop\Job-Scheduler\backend\src\main\java\com\jobscheduler\controller\QueueController.java
+E:\Desktop\Job-Scheduler\backend\src\main\java\com\jobscheduler\controller\UploadController.java
 E:\Desktop\Job-Scheduler\backend\src\main\java\com\jobscheduler\dto\DashboardResponse.java
 E:\Desktop\Job-Scheduler\backend\src\main\java\com\jobscheduler\dto\JobRequest.java
 E:\Desktop\Job-Scheduler\backend\src\main\java\com\jobscheduler\dto\JobResponse.java
@@ -15,6 +17,7 @@ E:\Desktop\Job-Scheduler\backend\src\main\java\com\jobscheduler\dto\QueueRespons
 E:\Desktop\Job-Scheduler\backend\src\main\java\com\jobscheduler\entity\DeadLetterEntry.java
 E:\Desktop\Job-Scheduler\backend\src\main\java\com\jobscheduler\entity\Job.java
 E:\Desktop\Job-Scheduler\backend\src\main\java\com\jobscheduler\entity\JobAttempt.java
+E:\Desktop\Job-Scheduler\backend\src\main\java\com\jobscheduler\entity\Notification.java
 E:\Desktop\Job-Scheduler\backend\src\main\java\com\jobscheduler\entity\Organization.java
 E:\Desktop\Job-Scheduler\backend\src\main\java\com\jobscheduler\entity\Project.java
 E:\Desktop\Job-Scheduler\backend\src\main\java\com\jobscheduler\entity\Queue.java
@@ -32,6 +35,7 @@ E:\Desktop\Job-Scheduler\backend\src\main\java\com\jobscheduler\ratelimit\RateLi
 E:\Desktop\Job-Scheduler\backend\src\main\java\com\jobscheduler\repository\DeadLetterRepository.java
 E:\Desktop\Job-Scheduler\backend\src\main\java\com\jobscheduler\repository\JobAttemptRepository.java
 E:\Desktop\Job-Scheduler\backend\src\main\java\com\jobscheduler\repository\JobRepository.java
+E:\Desktop\Job-Scheduler\backend\src\main\java\com\jobscheduler\repository\NotificationRepository.java
 E:\Desktop\Job-Scheduler\backend\src\main\java\com\jobscheduler\repository\OrganizationRepository.java
 E:\Desktop\Job-Scheduler\backend\src\main\java\com\jobscheduler\repository\ProjectRepository.java
 E:\Desktop\Job-Scheduler\backend\src\main\java\com\jobscheduler\repository\QueueRepository.java
