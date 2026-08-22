@@ -31,20 +31,25 @@ Job-Scheduler/
 ├── context.txt                   # This file
 ├── database/
 │   └── schema.sql                # Full PostgreSQL schema — run in Supabase SQL Editor
+├── .github/
+│   └── workflows/
+│       └── ci.yml                # GitHub Actions CI workflow (mvn test & npm run build)
 ├── backend/
 │   ├── pom.xml
-│   └── src/main/
-│       ├── java/com/jobscheduler/
-│       │   ├── JobSchedulerApplication.java
-│       │   ├── controller/       # REST controllers
-│       │   ├── dto/              # Request / Response DTOs
-│       │   ├── entity/           # JPA entities
-│       │   ├── repository/       # Spring Data JPA repositories
-│       │   ├── security/         # JWT filter, JwtService, SecurityConfig, UserContext
-│       │   ├── service/          # Business logic
-│       │   └── worker/           # Background scheduler threads
-│       └── resources/
-│           └── application.properties
+│   ├── src/main/
+│   │   ├── java/com/jobscheduler/
+│   │   │   ├── JobSchedulerApplication.java
+│   │   │   ├── controller/       # REST controllers
+│   │   │   ├── dto/              # Request / Response DTOs (JobRequest, BulkEnqueueRequest, etc.)
+│   │   │   ├── entity/           # JPA entities
+│   │   │   ├── repository/       # Spring Data JPA repositories
+│   │   │   ├── security/         # JWT filter, JwtService, SecurityConfig, UserContext
+│   │   │   ├── service/          # Business logic
+│   │   │   └── worker/           # Background scheduler threads & executors
+│   │   └── resources/
+│   │       └── application.properties
+│   └── src/test/
+│       └── java/com/jobscheduler/  # JUnit 5 Unit Tests (JobPollerTest, CronSchedulerTest, etc.)
 └── frontend/
     ├── package.json
     ├── .env                      # VITE_SUPABASE_URL, VITE_SUPABASE_ANON_KEY
@@ -52,13 +57,15 @@ Job-Scheduler/
     └── src/
         ├── App.tsx               # Route tree
         ├── main.tsx
-        ├── api/                  # Axios API clients
-        ├── components/           # Layout, ProtectedRoute
+        ├── vite-env.d.ts         # Vite client type definitions for import.meta.env
+        ├── api/                  # Axios API clients (dashboard, jobs, projects, queues, notifications)
+        ├── components/           # Layout, ProtectedRoute, EnqueueJobModal, BulkEnqueueModal, InboxPanel, TerminalLogViewer
         ├── hooks/                # useSupabaseAuth, usePolling, useSessionReady
         ├── lib/                  # supabaseClient.ts, axios.ts, slug.ts
         ├── pages/                # All page components
         ├── styles/               # Global CSS
         └── types/                # Shared TypeScript types (index.ts)
+
 
 --------------------------------------------------------------------------------
 3. DATABASE SCHEMA  (database/schema.sql)
@@ -214,14 +221,16 @@ GlobalExceptionHandler
 8. BACKEND — DTOs  (backend/src/main/java/com/jobscheduler/dto/)
 --------------------------------------------------------------------------------
 
-JobRequest      — payload, priority, scheduledAt, maxAttempts, retryConfig
-JobResponse     — all Job fields as flat record, static from(Job) factory
-ProjectRequest  — name (validated)
-ProjectResponse — id, name, apiKeyPrefix, createdAt, queueCount
-QueueRequest    — name, concurrencyLimit, defaultRetryConfig
-QueueResponse   — id, projectId, name, concurrencyLimit, isPaused, defaultRetryConfig
-DashboardResponse — jobCountsByStatus (Map), totalJobs, totalQueues, totalProjects, workers list
-PageResponse<T> — content, totalElements, totalPages, page, size
+JobRequest          — payload, priority, scheduledAt, maxAttempts, concurrency (default 5), retryConfig
+BulkEnqueueRequest  — payloads (List<Map>), priority, maxAttempts, concurrency (default 5), retryConfig
+JobResponse         — all Job fields as flat record, static from(Job) factory
+ProjectRequest      — name (validated)
+ProjectResponse     — id, name, apiKeyPrefix, createdAt, queueCount
+QueueRequest        — name, concurrencyLimit, defaultRetryConfig
+QueueResponse       — id, projectId, name, concurrencyLimit, isPaused, defaultRetryConfig
+DashboardResponse   — jobCountsByStatus (Map), totalJobs, totalQueues, totalProjects, workers list
+PageResponse<T>     — content, totalElements, totalPages, page, size
+
 
 --------------------------------------------------------------------------------
 9. BACKEND — SECURITY  (backend/src/main/java/com/jobscheduler/security/)
@@ -939,4 +948,43 @@ CHANGE LOG
             - NotificationJobExecutor throws if recipient email not found in users table
               (user must have logged in at least once)
             - Notification push/sms channels are still simulated (Thread.sleep)
+
+
+2026-08-22  Implemented per-job dynamic concurrency, active worker management, UI logs, unit tests, and GitHub Actions CI.
+
+            ── DYNAMIC WORKER ARCHITECTURE ──────────────────────────────────
+            - Concurrency Isolation: Converted workerNames list in JobPoller and CronScheduler
+              to CopyOnWriteArrayList to safely register new worker instances (worker-1 .. worker-n)
+              at runtime without concurrency locks or polling thread starvation.
+            - Dynamic Registration API:
+              Added POST /api/dashboard/workers/add endpoint in DashboardController.java.
+              Calculates the next worker index (worker-5, worker-6, etc.), persists the active record,
+              and dynamically registers the thread with JobPoller and CronScheduler.
+            - Offline Cleanup: DashboardController.dashboard() automatically purges stale offline workers from
+              the database to keep dashboard metrics clean.
+            - Dashboard UI: Added styled "+ Add Worker" button below the Workers table in DashboardPage.tsx.
+
+            ── ENQUEUE CONCURRENCY CONTROL (DEFAULT: 5) ────────────────────
+            - DTO Updates: Added optional concurrency field (default: 5) to JobRequest.java and BulkEnqueueRequest.
+            - Queue Limit Persistence: JobController.enqueue() and bulkEnqueue() automatically update the
+              queue entity's concurrencyLimit to match the requested parameter.
+            - Frontend Modals: Updated EnqueueJobModal.tsx and BulkEnqueueModal.tsx to render an editable
+              concurrency input field synced with the selected queue.
+
+            ── LOGGING & TERMINAL SCROLLING ─────────────────────────────────
+            - Chronological Terminal Log Viewer (TerminalLogViewer.tsx):
+              Sorted logs chronologically by timestamp (latest logs at bottom) with smooth auto-scrolling.
+
+            ── UNIT TESTS & GITHUB ACTIONS CI ──────────────────────────────
+            - JUnit 5 Test Suite (backend/src/test/java):
+              - JobPollerTest: Validates initial worker pool (4), dynamic addition (worker-5), and job claiming.
+              - CronSchedulerTest: Validates worker heartbeat upserts and dynamic worker addition.
+              - DashboardControllerTest: Validates worker creation API and offline worker cleanup.
+              - JobControllerTest: Validates queue concurrency updates and default concurrency (5).
+              - Verified 100% pass rate locally (mvn test).
+            - GitHub Actions Workflow (.github/workflows/ci.yml):
+              - Created automated workflow triggering on push and pull_request to main.
+              - Runs mvn test (Java 21) and npm run build (Node 20 / Vite / React).
+              - Fixed frontend TypeScript build types (src/vite-env.d.ts) and removed unused variables.
+
 
