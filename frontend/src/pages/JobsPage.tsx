@@ -142,7 +142,7 @@ export default function JobsPage() {
             <button className="btn-ghost"
               style={{ fontSize: 13, borderColor: 'rgba(99,102,241,0.4)', color: 'var(--accent)' }}
               onClick={() => setShowBulkModal(true)}>
-              ⚡ Bulk
+              ⚡ Bulk 
             </button>
             <button className="btn-primary" onClick={() => setShowEnqueueModal(true)}>
               + Enqueue Job
