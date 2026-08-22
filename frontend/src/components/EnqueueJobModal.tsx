@@ -204,7 +204,8 @@ export default function EnqueueJobModal({ lockedQueue, lockedProjectId, onClose,
   const [submitError, setSubmitError] = useState<string | null>(null)
 
   // PDF upload state
-  const [pdfFile, setPdfFile]         = useState<File | null>(null)
+  const [, setPdfFile]                = useState<File | null>(null)
+
   const [uploading, setUploading]     = useState(false)
   const [uploadError, setUploadError] = useState<string | null>(null)
   const [uploadedUrl, setUploadedUrl] = useState<string | null>(null)

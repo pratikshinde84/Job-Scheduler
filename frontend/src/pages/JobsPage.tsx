@@ -218,7 +218,7 @@ export default function JobsPage() {
       <BulkEnqueueModal
         lockedQueue={queue}
         onClose={() => setShowBulkModal(false)}
-        onSuccess={(count) => { setShowBulkModal(false); load() }}
+        onSuccess={() => { setShowBulkModal(false); load() }}
       />
     )}
     </>
@@ -335,9 +335,10 @@ function JobResult({ result }: { result: Record<string, unknown> }) {
 }
 
 // Helpers for result cards
-function resultCard(accent: string, bg: string, border: string): React.CSSProperties {
+function resultCard(_accent: string, bg: string, border: string): React.CSSProperties {
   return { background: bg, border: `1px solid ${border}`, borderRadius: 8, padding: '12px 14px' }
 }
+
 const resultLabel: React.CSSProperties = { fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 10 }
 const resultKvLabel: React.CSSProperties = { fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', display: 'block' }
 

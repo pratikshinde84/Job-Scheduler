@@ -1,0 +1,5 @@
+src/components/EnqueueJobModal.tsx(207,10): error TS6133: 'pdfFile' is declared but its value is never read.
+src/lib/supabaseClient.ts(4,34): error TS2339: Property 'env' does not exist on type 'ImportMeta'.
+src/lib/supabaseClient.ts(5,39): error TS2339: Property 'env' does not exist on type 'ImportMeta'.
+src/pages/JobsPage.tsx(221,21): error TS6133: 'count' is declared but its value is never read.
+src/pages/JobsPage.tsx(338,21): error TS6133: 'accent' is declared but its value is never read.
