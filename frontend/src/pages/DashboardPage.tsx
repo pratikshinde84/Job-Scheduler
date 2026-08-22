@@ -3,6 +3,7 @@ import { dashboardApi } from '../api/dashboard'
 import { usePolling } from '../hooks/usePolling'
 import { useSessionReady } from '../hooks/useSessionReady'
 import type { DashboardData, JobStatus, WorkerStatus } from '../types'
+import TerminalLogViewer from '../components/TerminalLogViewer'
 
 const STATUS_ORDER: JobStatus[] = ['running', 'pending', 'scheduled', 'claimed', 'completed', 'failed', 'dead']
 
@@ -110,11 +111,15 @@ export default function DashboardPage() {
               </table>
             )}
           </section>
+
+          {/* ── Terminal Execution Log Screen ──────────────────────── */}
+          <TerminalLogViewer />
         </>
       )}
     </div>
   )
 }
+
 
 function StatCard({ label, value, color }: { label: string; value: number; color: string }) {
   return (

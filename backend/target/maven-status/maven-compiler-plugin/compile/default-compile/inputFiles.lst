@@ -1,11 +1,13 @@
 E:\Desktop\Job-Scheduler\backend\src\main\java\com\jobscheduler\config\RedisConfig.java
 E:\Desktop\Job-Scheduler\backend\src\main\java\com\jobscheduler\controller\DashboardController.java
+E:\Desktop\Job-Scheduler\backend\src\main\java\com\jobscheduler\controller\DashboardLogController.java
 E:\Desktop\Job-Scheduler\backend\src\main\java\com\jobscheduler\controller\GlobalExceptionHandler.java
 E:\Desktop\Job-Scheduler\backend\src\main\java\com\jobscheduler\controller\JobController.java
 E:\Desktop\Job-Scheduler\backend\src\main\java\com\jobscheduler\controller\NotificationController.java
 E:\Desktop\Job-Scheduler\backend\src\main\java\com\jobscheduler\controller\ProjectController.java
 E:\Desktop\Job-Scheduler\backend\src\main\java\com\jobscheduler\controller\QueueController.java
 E:\Desktop\Job-Scheduler\backend\src\main\java\com\jobscheduler\controller\UploadController.java
+E:\Desktop\Job-Scheduler\backend\src\main\java\com\jobscheduler\dto\DashboardLogResponse.java
 E:\Desktop\Job-Scheduler\backend\src\main\java\com\jobscheduler\dto\DashboardResponse.java
 E:\Desktop\Job-Scheduler\backend\src\main\java\com\jobscheduler\dto\JobRequest.java
 E:\Desktop\Job-Scheduler\backend\src\main\java\com\jobscheduler\dto\JobResponse.java

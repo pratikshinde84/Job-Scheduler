@@ -49,6 +49,7 @@ com\jobscheduler\repository\QueueRepository.class
 com\jobscheduler\repository\NotificationRepository.class
 com\jobscheduler\dto\DashboardResponse$WorkerSummary.class
 com\jobscheduler\JobSchedulerApplication.class
+com\jobscheduler\controller\DashboardLogController$1.class
 com\jobscheduler\repository\WorkerRepository.class
 com\jobscheduler\controller\DashboardController.class
 com\jobscheduler\controller\NotificationController.class
