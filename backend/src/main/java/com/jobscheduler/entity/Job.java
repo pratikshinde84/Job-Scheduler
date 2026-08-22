@@ -83,6 +83,11 @@ public class Job {
     @Column(name = "last_error", columnDefinition = "text")
     private String lastError;
 
+    /** Stores executor output (e.g. calculation result). Null for jobs with no output. */
+    @Type(JsonBinaryType.class)
+    @Column(name = "result", columnDefinition = "jsonb")
+    private Map<String, Object> result;
+
     @CreationTimestamp
     @Column(name = "created_at", updatable = false)
     private OffsetDateTime createdAt;

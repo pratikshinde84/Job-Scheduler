@@ -6,6 +6,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.data.redis.connection.RedisConnectionFactory;
+import org.springframework.data.redis.connection.RedisPassword;
 import org.springframework.data.redis.connection.RedisStandaloneConfiguration;
 import org.springframework.data.redis.connection.lettuce.LettuceClientConfiguration;
 import org.springframework.data.redis.connection.lettuce.LettuceConnectionFactory;
@@ -13,44 +14,45 @@ import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.script.DefaultRedisScript;
 import org.springframework.scripting.support.StaticScriptSource;
 
-import java.net.URI;
 import java.time.Duration;
 
 /**
- * Configures Lettuce to connect to Upstash Redis over TLS (rediss://).
+ * Manually configures a Lettuce TLS connection to Upstash Redis.
  *
- * Upstash requires:
- *  - TLS (rediss:// scheme)
- *  - Password auth
- *  - Default DB 0
+ * Why manual instead of Spring Boot auto-config?
+ * Upstash requires SSL (port 6379 with TLS). Spring Boot's auto-config
+ * only enables SSL when spring.data.redis.ssl.enabled=true AND the URL
+ * scheme is rediss://, but Lettuce's URL parsing for rediss:// can be
+ * unreliable across versions. Using a manual LettuceConnectionFactory
+ * with .useSsl() is the most reliable approach.
  *
- * We parse the upstash.redis.url property to extract host/port/password
- * so the single URL is the only thing you need to change.
+ * Properties used (application.properties):
+ *   upstash.redis.host     — e.g. lenient-mammal-128557.upstash.io
+ *   upstash.redis.port     — 6379
+ *   upstash.redis.password — the Upstash Redis password
  */
 @Configuration
 public class RedisConfig {
 
-    @Value("${upstash.redis.url}")
-    private String redisUrl;
+    @Value("${upstash.redis.host}")
+    private String host;
+
+    @Value("${upstash.redis.port:6379}")
+    private int port;
 
     @Value("${upstash.redis.password}")
-    private String redisPassword;
+    private String password;
 
     @Bean
     public RedisConnectionFactory redisConnectionFactory() {
-        // Java's URI class doesn't know the "rediss" scheme, so normalise to "redis"
-        // just for parsing — TLS is enforced by LettuceClientConfiguration.useSsl().
-        URI uri = URI.create(redisUrl.replaceFirst("^rediss://", "redis://"));
-
+        // Server config — host, port, password, DB 0
         RedisStandaloneConfiguration serverConfig = new RedisStandaloneConfiguration();
-        serverConfig.setHostName(uri.getHost());
-        serverConfig.setPort(uri.getPort() > 0 ? uri.getPort() : 6379);
-        serverConfig.setPassword(redisPassword);
+        serverConfig.setHostName(host);
+        serverConfig.setPort(port);
+        serverConfig.setPassword(RedisPassword.of(password));
         serverConfig.setDatabase(0);
 
-        // Upstash mandates TLS — enable SSL + disable hostname verification
-        // (Upstash uses wildcard certs; hostname verification is safe to skip here
-        //  because the password provides authentication).
+        // Client config — force TLS, 5 s command timeout
         SslOptions sslOptions = SslOptions.builder()
                 .jdkSslProvider()
                 .build();
@@ -60,13 +62,16 @@ public class RedisConfig {
                 .build();
 
         LettuceClientConfiguration clientConfig = LettuceClientConfiguration.builder()
-                .useSsl()
+                .useSsl()                               // enforce TLS
                 .and()
                 .commandTimeout(Duration.ofSeconds(5))
                 .clientOptions(clientOptions)
                 .build();
 
-        return new LettuceConnectionFactory(serverConfig, clientConfig);
+        LettuceConnectionFactory factory =
+                new LettuceConnectionFactory(serverConfig, clientConfig);
+        factory.afterPropertiesSet();   // eagerly initialise so connection errors surface at startup
+        return factory;
     }
 
     @Bean
@@ -75,38 +80,34 @@ public class RedisConfig {
     }
 
     /**
-     * Pre-compiled sliding-window Lua script.
-     * Stored as a bean so it is SHA-cached by Redis on first EVALSHA call.
+     * Sliding-window Lua script — atomically enforces the rate limit.
      *
-     * Args passed at runtime:
-     *   KEYS[1] = rate limit key  e.g. "rl:user:<userId>:enqueue"
-     *   ARGV[1] = current time in milliseconds (as string)
-     *   ARGV[2] = window size in milliseconds  (as string)
-     *   ARGV[3] = request limit                (as string)
+     * KEYS[1] = Redis key (e.g. "rl:{userId}:enqueue")
+     * ARGV[1] = current time in milliseconds
+     * ARGV[2] = window size in milliseconds
+     * ARGV[3] = max requests allowed in window
      *
-     * Returns:
-     *   1  — request allowed
-     *   0  — rate limit exceeded
+     * Returns 1 if allowed, 0 if rate-limited.
      */
     @Bean
     public DefaultRedisScript<Long> slidingWindowScript() {
         String lua = """
-                local key        = KEYS[1]
-                local now        = tonumber(ARGV[1])
-                local windowMs   = tonumber(ARGV[2])
-                local limit      = tonumber(ARGV[3])
+                local key         = KEYS[1]
+                local now         = tonumber(ARGV[1])
+                local windowMs    = tonumber(ARGV[2])
+                local limit       = tonumber(ARGV[3])
                 local windowStart = now - windowMs
 
-                -- Remove timestamps outside the current window
+                -- Remove entries outside the sliding window
                 redis.call('ZREMRANGEBYSCORE', key, '-inf', windowStart)
 
-                -- Count remaining requests in window
+                -- Count current entries in window
                 local count = redis.call('ZCARD', key)
 
                 if count < limit then
-                    -- Add this request with score = timestamp
+                    -- Record this request (unique member = timestamp + random suffix)
                     redis.call('ZADD', key, now, now .. '-' .. math.random(1, 1000000))
-                    -- Expire the key after the window so it auto-cleans
+                    -- Auto-expire the key after the window
                     redis.call('PEXPIRE', key, windowMs)
                     return 1
                 else

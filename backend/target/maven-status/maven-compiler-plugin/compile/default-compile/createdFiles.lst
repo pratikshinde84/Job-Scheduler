@@ -5,10 +5,12 @@ com\jobscheduler\controller\ProjectController.class
 com\jobscheduler\executor\PdfJobExecutor.class
 com\jobscheduler\entity\Project$ProjectBuilder.class
 com\jobscheduler\dto\QueueResponse.class
+com\jobscheduler\ratelimit\RateLimiterService.class
 com\jobscheduler\security\SecurityConfig.class
 com\jobscheduler\entity\Project.class
 com\jobscheduler\service\JobService.class
 com\jobscheduler\security\JwtAuthenticationFilter.class
+com\jobscheduler\ratelimit\RateLimitFilter.class
 com\jobscheduler\repository\DeadLetterRepository.class
 com\jobscheduler\dto\ProjectResponse.class
 com\jobscheduler\repository\ProjectRepository.class
@@ -37,6 +39,7 @@ com\jobscheduler\entity\Organization.class
 com\jobscheduler\executor\EmailJobExecutor.class
 com\jobscheduler\service\ProjectService.class
 com\jobscheduler\dto\ProjectRequest.class
+com\jobscheduler\config\RedisConfig.class
 com\jobscheduler\repository\QueueRepository.class
 com\jobscheduler\dto\DashboardResponse$WorkerSummary.class
 com\jobscheduler\JobSchedulerApplication.class

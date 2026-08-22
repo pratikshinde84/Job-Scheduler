@@ -28,23 +28,19 @@ import java.util.Optional;
  * unauthenticated (and malformed-token) requests are also counted.
  *
  * Rate limit key strategy:
- *  - Authenticated requests  → keyed by userId (from JWT sub claim)
- *  - Unauthenticated requests → keyed by client IP address
+ *   Authenticated requests   -- keyed by userId (from JWT sub claim)
+ *   Unauthenticated requests -- keyed by client IP address
  *
  * Buckets:
- *  - "enqueue"  → POST /api/queues/*/jobs  (tighter limit)
- *  - "default"  → all other /api/** paths
+ *   "enqueue" -- POST /api/queues/{id}/jobs  (tighter limit)
+ *   "default" -- all other /api/** paths
  *
  * Response when limited (HTTP 429):
- *  Headers:
- *    X-RateLimit-Limit     : max requests in window
- *    X-RateLimit-Remaining : requests left in window
- *    X-RateLimit-Reset     : Unix epoch seconds when window resets
- *    Retry-After           : seconds until retry is safe
- *  Body (JSON):
- *    { "status": 429, "error": "Too Many Requests", "message": "...", "retryAfterSeconds": N }
+ *   Headers: X-RateLimit-Limit, X-RateLimit-Remaining, X-RateLimit-Reset, Retry-After
+ *   Body: { "status": 429, "error": "Too Many Requests",
+ *            "message": "...", "retryAfterSeconds": N }
  *
- * Non-API paths (actuator, OPTIONS) are always exempt.
+ * Exempt paths: OPTIONS, /actuator/**, anything not starting with /api
  */
 @Slf4j
 @Component
@@ -62,8 +58,6 @@ public class RateLimitFilter extends OncePerRequestFilter {
     protected boolean shouldNotFilter(HttpServletRequest request) {
         String path   = request.getRequestURI();
         String method = request.getMethod();
-
-        // Skip OPTIONS (CORS preflight), actuator, and non-API paths
         return "OPTIONS".equalsIgnoreCase(method)
                 || path.startsWith("/actuator")
                 || !path.startsWith("/api");
@@ -85,11 +79,10 @@ public class RateLimitFilter extends OncePerRequestFilter {
 
         boolean allowed = rateLimiter.isAllowed(key, bucket);
 
-        // Always set informational headers
-        int  limit          = rateLimiter.getLimit(bucket);
-        long remaining      = rateLimiter.remaining(key, bucket);
-        int  windowSeconds  = rateLimiter.getWindowSeconds(bucket);
-        long resetEpoch     = Instant.now().getEpochSecond() + windowSeconds;
+        int  limit         = rateLimiter.getLimit(bucket);
+        long remaining     = rateLimiter.remaining(key, bucket);
+        int  windowSeconds = rateLimiter.getWindowSeconds(bucket);
+        long resetEpoch    = Instant.now().getEpochSecond() + windowSeconds;
 
         response.setHeader("X-RateLimit-Limit",     String.valueOf(limit));
         response.setHeader("X-RateLimit-Remaining", String.valueOf(remaining));
@@ -97,7 +90,6 @@ public class RateLimitFilter extends OncePerRequestFilter {
 
         if (!allowed) {
             log.warn("RateLimit: key={} bucket={} BLOCKED", key, bucket);
-
             response.setStatus(HttpStatus.TOO_MANY_REQUESTS.value());
             response.setContentType(MediaType.APPLICATION_JSON_VALUE);
             response.setHeader("Retry-After", String.valueOf(windowSeconds));
@@ -105,7 +97,8 @@ public class RateLimitFilter extends OncePerRequestFilter {
             Map<String, Object> body = Map.of(
                     "status",            429,
                     "error",             "Too Many Requests",
-                    "message",           "Rate limit exceeded. Try again in " + windowSeconds + " seconds.",
+                    "message",           "Rate limit exceeded. Try again in "
+                                         + windowSeconds + " seconds.",
                     "retryAfterSeconds", windowSeconds
             );
             objectMapper.writeValue(response.getOutputStream(), body);
@@ -115,13 +108,9 @@ public class RateLimitFilter extends OncePerRequestFilter {
         chain.doFilter(request, response);
     }
 
-    // ── Helpers ───────────────────────────────────────────────────────────────
+    // ── helpers ───────────────────────────────────────────────────────────────
 
-    /**
-     * Extract the rate-limit key:
-     *  - JWT present and valid → userId (UUID string)
-     *  - No/invalid JWT        → client IP address
-     */
+    /** Uses userId from a valid JWT; falls back to client IP. */
     private String resolveKey(HttpServletRequest request) {
         String authHeader = request.getHeader("Authorization");
         if (authHeader != null && authHeader.startsWith("Bearer ")) {
@@ -132,27 +121,22 @@ public class RateLimitFilter extends OncePerRequestFilter {
                     return jwtService.extractUserId(claims.get()).toString();
                 }
             } catch (Exception ignored) {
-                // fall through to IP-based key
+                // fall through to IP
             }
         }
         return getClientIp(request);
     }
 
-    /**
-     * Determine the rate-limit bucket:
-     *  - POST /api/queues/*/jobs → "enqueue"  (tighter)
-     *  - everything else         → "default"
-     */
+    /** POST /api/queues/{id}/jobs uses the tighter "enqueue" bucket. */
     private String resolveBucket(HttpServletRequest request) {
-        String path   = request.getRequestURI();
-        String method = request.getMethod();
-        if ("POST".equalsIgnoreCase(method) && path.matches("/api/queues/[^/]+/jobs")) {
+        if ("POST".equalsIgnoreCase(request.getMethod())
+                && request.getRequestURI().matches("/api/queues/[^/]+/jobs")) {
             return "enqueue";
         }
         return "default";
     }
 
-    /** Respects X-Forwarded-For (Upstash / proxy deployments). */
+    /** Respects X-Forwarded-For for proxy/cloud deployments. */
     private String getClientIp(HttpServletRequest request) {
         String forwarded = request.getHeader("X-Forwarded-For");
         if (forwarded != null && !forwarded.isBlank()) {
