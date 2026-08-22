@@ -56,9 +56,15 @@ public class DashboardLogController {
 
         List<DashboardLogResponse.LogEntry> logEntries = new ArrayList<>();
 
+        Map<UUID, String> jobWorkerMap = new HashMap<>();
+
         // Convert Attempts into Log Entries
         for (JobAttempt a : attempts) {
             Job j = a.getJob();
+            if (j != null && a.getWorkerName() != null) {
+                jobWorkerMap.putIfAbsent(j.getId(), a.getWorkerName());
+            }
+
             Long durationMs = null;
             if (a.getStartedAt() != null && a.getFinishedAt() != null) {
                 durationMs = Duration.between(a.getStartedAt(), a.getFinishedAt()).toMillis();
@@ -111,6 +117,14 @@ public class DashboardLogController {
                     ? j.getQueue().getProject().getName()
                     : "unknown";
 
+            String assignedWorker = j.getLockedBy();
+            if (assignedWorker == null) {
+                assignedWorker = jobWorkerMap.get(j.getId());
+            }
+            if (assignedWorker == null) {
+                assignedWorker = "unassigned";
+            }
+
             String level = switch (j.getStatus()) {
                 case completed -> "SUCCESS";
                 case failed -> "WARN";
@@ -120,15 +134,16 @@ public class DashboardLogController {
             };
 
             String event = "JOB_" + j.getStatus().name().toUpperCase();
-            String message = String.format("Job [%s] status: %s (Priority: %d, Attempts: %d/%d)",
-                    shortId(j.getId()), j.getStatus().name(), j.getPriority(), j.getAttemptCount(), j.getMaxAttempts());
+            String message = String.format("Job [%s] status: %s (Priority: %d, Attempts: %d/%d, Worker: %s)",
+                    shortId(j.getId()), j.getStatus().name(), j.getPriority(), j.getAttemptCount(), j.getMaxAttempts(),
+                    assignedWorker);
 
             logEntries.add(new DashboardLogResponse.LogEntry(
                     "job-status-" + j.getId() + "-" + j.getStatus(),
                     j.getId().toString(),
                     queueName,
                     projectName,
-                    j.getLockedBy() != null ? j.getLockedBy() : "unassigned",
+                    assignedWorker,
                     j.getAttemptCount(),
                     j.getMaxAttempts(),
                     level,

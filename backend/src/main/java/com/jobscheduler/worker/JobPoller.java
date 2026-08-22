@@ -12,6 +12,7 @@ import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
 import java.time.OffsetDateTime;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -20,15 +21,16 @@ import java.util.concurrent.Semaphore;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
+import java.util.concurrent.CopyOnWriteArrayList;
+
 /**
- * Polls all active (non-paused) queues every 2 seconds and dispatches
- * runnable jobs to async execution threads.
+ * Polls all active queues every 2 seconds across multiple worker identities
+ * (e.g. worker-instance-1, worker-instance-2, worker-instance-3).
  *
  * Each queue gets its own Semaphore whose permit count equals the queue's
- * concurrencyLimit, preventing over-saturation.
- *
- * Job routing: the queue name is matched case-insensitively to a registered
- * {@link JobExecutor} bean. If no match is found, a fallback stub executes.
+ * concurrencyLimit.
+ * Row-level FOR UPDATE SKIP LOCKED ensures complete atomic isolation between
+ * worker instances.
  */
 @Slf4j
 @Component
@@ -36,7 +38,7 @@ public class JobPoller {
 
     private final QueueRepository queueRepository;
     private final JobService jobService;
-    private final String workerName;
+    private final List<String> workerNames = new CopyOnWriteArrayList<>();
 
     /** Executor registry: queueName (lower-case) → executor bean */
     private final Map<String, JobExecutor> executorRegistry;
@@ -45,12 +47,17 @@ public class JobPoller {
     private final Map<UUID, Semaphore> semaphores = new ConcurrentHashMap<>();
 
     public JobPoller(QueueRepository queueRepository,
-                     JobService jobService,
-                     @Value("${worker.name:spring-boot-instance-1}") String workerName,
-                     List<JobExecutor> executors) {
+            JobService jobService,
+            @Value("${worker.name-prefix:worker}") String namePrefix,
+            @Value("${worker.count:4}") int workerCount,
+            List<JobExecutor> executors) {
+
         this.queueRepository = queueRepository;
         this.jobService = jobService;
-        this.workerName = workerName;
+
+        for (int i = 1; i <= workerCount; i++) {
+            this.workerNames.add(namePrefix + "-" + i);
+        }
 
         // Build a lookup map: lower-case queue name → executor
         this.executorRegistry = executors.stream()
@@ -58,8 +65,19 @@ public class JobPoller {
                         e -> e.queueName().toLowerCase(),
                         Function.identity()));
 
-        log.info("JobPoller registered {} executor(s): {}",
-                executorRegistry.size(), executorRegistry.keySet());
+        log.info("JobPoller initialized with {} worker identities {} and {} registered executor(s): {}",
+                workerNames.size(), workerNames, executorRegistry.size(), executorRegistry.keySet());
+    }
+
+    public synchronized void addWorker(String workerName) {
+        if (!workerNames.contains(workerName)) {
+            workerNames.add(workerName);
+            log.info("JobPoller registered dynamic worker instance: {}", workerName);
+        }
+    }
+
+    public List<String> getWorkerNames() {
+        return new ArrayList<>(workerNames);
     }
 
     // ── Poll loop ─────────────────────────────────────────────────────────────
@@ -72,17 +90,18 @@ public class JobPoller {
                     queue.getId(),
                     id -> new Semaphore(queue.getConcurrencyLimit(), true));
 
-            int available = sem.availablePermits();
-            if (available <= 0) continue;
+            for (String currentWorker : workerNames) {
+                if (sem.availablePermits() <= 0)
+                    break;
 
-            List<Job> claimed = jobService.claimJobs(queue.getId(), workerName, available);
-            for (Job job : claimed) {
-                if (sem.tryAcquire()) {
-                    // Resolve queue name HERE while the JPA session is still open.
-                    // executeAsync runs in a separate thread with no session —
-                    // calling job.getQueue().getName() there causes LazyInitializationException.
-                    String resolvedQueueName = queue.getName();
-                    executeAsync(job, resolvedQueueName, sem);
+                // Claim 1 job per worker per pass for fair round-robin distribution across all
+                // workers
+                List<Job> claimed = jobService.claimJobs(queue.getId(), currentWorker, 1);
+                for (Job job : claimed) {
+                    if (sem.tryAcquire()) {
+                        String resolvedQueueName = queue.getName();
+                        executeAsync(job, resolvedQueueName, currentWorker, sem);
+                    }
                 }
             }
         }
@@ -91,21 +110,21 @@ public class JobPoller {
     // ── Async execution ───────────────────────────────────────────────────────
 
     @Async
-    public void executeAsync(Job job, String queueName, Semaphore sem) {
+    public void executeAsync(Job job, String queueName, String workerIdentity, Semaphore sem) {
         OffsetDateTime startedAt = OffsetDateTime.now();
         try {
-            jobService.markRunning(job.getId(), workerName);
-            log.info("[{}] Starting job {} on queue '{}'", workerName, job.getId(), queueName);
+            jobService.markRunning(job.getId(), workerIdentity);
+            log.info("[{}] Starting job {} on queue '{}'", workerIdentity, job.getId(), queueName);
 
-            dispatch(job, queueName);
+            dispatch(job, queueName, workerIdentity);
 
-            jobService.completeJob(job.getId(), workerName, startedAt);
-            log.info("[{}] Completed job {}", workerName, job.getId());
+            jobService.completeJob(job.getId(), workerIdentity, startedAt);
+            log.info("[{}] Completed job {}", workerIdentity, job.getId());
 
         } catch (Exception ex) {
-            log.error("[{}] Job {} failed: {}", workerName, job.getId(), ex.getMessage(), ex);
+            log.error("[{}] Job {} failed: {}", workerIdentity, job.getId(), ex.getMessage(), ex);
             jobService.failJob(
-                    job.getId(), workerName, startedAt,
+                    job.getId(), workerIdentity, startedAt,
                     ex.getMessage(), stackTraceToString(ex));
         } finally {
             sem.release();
@@ -114,31 +133,23 @@ public class JobPoller {
 
     // ── Routing ───────────────────────────────────────────────────────────────
 
-    /**
-     * Looks up the correct {@link JobExecutor} by queue name and delegates.
-     * Falls back to a stub if no executor is registered for that queue name.
-     */
-    private void dispatch(Job job, String queueName) throws Exception {
+    private void dispatch(Job job, String queueName, String workerIdentity) throws Exception {
         JobExecutor executor = executorRegistry.get(queueName.toLowerCase());
 
         if (executor != null) {
-            log.debug("[{}] Dispatching job {} to {}", workerName, job.getId(),
+            log.debug("[{}] Dispatching job {} to {}", workerIdentity, job.getId(),
                     executor.getClass().getSimpleName());
             executor.execute(job);
         } else {
             log.warn("[{}] No executor registered for queue '{}' — running fallback stub",
-                    workerName, queueName);
-            fallbackStub(job);
+                    workerIdentity, queueName);
+            fallbackStub(job, workerIdentity);
         }
     }
 
-    /**
-     * Fallback for queues that have no registered executor.
-     * Simulates 200–600 ms of work so jobs don't stack up indefinitely.
-     */
-    private void fallbackStub(Job job) throws InterruptedException {
+    private void fallbackStub(Job job, String workerIdentity) throws InterruptedException {
         long duration = 200 + (long) (Math.random() * 400);
-        log.debug("[{}] Fallback stub: sleeping {} ms for job {}", workerName, duration, job.getId());
+        log.debug("[{}] Fallback stub: sleeping {} ms for job {}", workerIdentity, duration, job.getId());
         Thread.sleep(duration);
     }
 

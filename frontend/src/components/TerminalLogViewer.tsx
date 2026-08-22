@@ -264,10 +264,13 @@ export default function TerminalLogViewer() {
           </div>
         ))}
 
-        {/* Render Log Lines */}
-        {filteredLogs.map(log => {
-          const isExpanded = expandedLogId === log.id
-          const lvlStyle = getLevelStyle(log.level)
+        {/* Render Log Lines (Sorted ascending: oldest at top, latest at bottom) */}
+        {[...filteredLogs]
+          .sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime())
+          .map(log => {
+            const isExpanded = expandedLogId === log.id
+            const lvlStyle = getLevelStyle(log.level)
+
 
           return (
             <div
