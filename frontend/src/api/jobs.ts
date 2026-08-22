@@ -28,4 +28,13 @@ export const jobsApi = {
 
   requeue: (jobId: string) =>
     api.post<Job>(`/jobs/${jobId}/requeue`).then((r) => r.data),
+
+  bulkEnqueue: (queueId: string, body: {
+    payloads: Record<string, unknown>[]
+    priority?: number
+    maxAttempts?: number
+  }) =>
+    api.post<{ enqueued: number; queueId: string; jobIds: string[] }>(
+      `/queues/${queueId}/jobs/bulk`, body
+    ).then((r) => r.data),
 }

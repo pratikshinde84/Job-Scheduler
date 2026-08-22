@@ -7,6 +7,7 @@ import { usePolling } from '../hooks/usePolling'
 import { useSessionReady } from '../hooks/useSessionReady'
 import { findBySlug } from '../lib/slug'
 import EnqueueJobModal from '../components/EnqueueJobModal'
+import BulkEnqueueModal from '../components/BulkEnqueueModal'
 import type { Job, JobStatus, Page, Project, Queue } from '../types'
 
 const STATUSES: JobStatus[] = ['pending', 'scheduled', 'claimed', 'running', 'completed', 'failed', 'dead']
@@ -24,6 +25,7 @@ export default function JobsPage() {
   const [loading, setLoading]       = useState(true)
   const [error, setError]           = useState<string | null>(null)
   const [showEnqueueModal, setShowEnqueueModal] = useState(false)
+  const [showBulkModal, setShowBulkModal]       = useState(false)
 
   const load = useCallback(async () => {
     try {
@@ -136,9 +138,16 @@ export default function JobsPage() {
           )}
         </div>
         {isQueueView && (
-          <button className="btn-primary" onClick={() => setShowEnqueueModal(true)}>
-            + Enqueue Job
-          </button>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button className="btn-ghost"
+              style={{ fontSize: 13, borderColor: 'rgba(99,102,241,0.4)', color: 'var(--accent)' }}
+              onClick={() => setShowBulkModal(true)}>
+              ⚡ Bulk
+            </button>
+            <button className="btn-primary" onClick={() => setShowEnqueueModal(true)}>
+              + Enqueue Job
+            </button>
+          </div>
         )}
       </header>
 
@@ -201,6 +210,15 @@ export default function JobsPage() {
         lockedQueue={queue}
         onClose={() => setShowEnqueueModal(false)}
         onSuccess={() => { setShowEnqueueModal(false); load() }}
+      />
+    )}
+
+    {/* Bulk Enqueue modal */}
+    {showBulkModal && queue && (
+      <BulkEnqueueModal
+        lockedQueue={queue}
+        onClose={() => setShowBulkModal(false)}
+        onSuccess={(count) => { setShowBulkModal(false); load() }}
       />
     )}
     </>

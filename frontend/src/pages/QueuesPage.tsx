@@ -6,6 +6,7 @@ import { usePolling } from '../hooks/usePolling'
 import { useSessionReady } from '../hooks/useSessionReady'
 import { findBySlug, toSlug } from '../lib/slug'
 import EnqueueJobModal from '../components/EnqueueJobModal'
+import BulkEnqueueModal from '../components/BulkEnqueueModal'
 import type { Project, Queue } from '../types'
 
 export default function QueuesPage() {
@@ -21,6 +22,7 @@ export default function QueuesPage() {
   const [form, setForm] = useState({ name: '', concurrencyLimit: 5 })
   const [saving, setSaving] = useState(false)
   const [enqueueTarget, setEnqueueTarget] = useState<Queue | null>(null)
+  const [bulkTarget, setBulkTarget]       = useState<Queue | null>(null)
 
   const load = useCallback(async () => {
     if (!projectName) return
@@ -190,6 +192,8 @@ export default function QueuesPage() {
                 </span>
                 <button className="btn-primary" style={{ fontSize: 12 }}
                   onClick={() => setEnqueueTarget(q)}>+ Enqueue</button>
+                <button className="btn-ghost" style={{ fontSize: 12, borderColor: 'rgba(99,102,241,0.4)', color: 'var(--accent)' }}
+                  onClick={() => setBulkTarget(q)}>⚡ Bulk</button>
                 <button className="btn-ghost" style={{ fontSize: 12 }}
                   onClick={() => togglePause(q)}>
                   {q.isPaused ? 'Resume' : 'Pause'}
@@ -210,6 +214,21 @@ export default function QueuesPage() {
         lockedProjectId={project?.id}
         onClose={() => setEnqueueTarget(null)}
         onSuccess={() => setEnqueueTarget(null)}
+      />
+    )}
+
+    {/* Bulk Enqueue modal — opens when user clicks "⚡ Bulk" on a queue row */}
+    {bulkTarget && (
+      <BulkEnqueueModal
+        lockedQueue={bulkTarget}
+        lockedProjectId={project?.id}
+        onClose={() => setBulkTarget(null)}
+        onSuccess={(count) => {
+          setBulkTarget(null)
+          load()
+          // brief toast-like feedback already shown inside the modal
+          console.info(`Bulk enqueued ${count} jobs`)
+        }}
       />
     )}
   </>

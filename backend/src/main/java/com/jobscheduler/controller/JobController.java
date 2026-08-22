@@ -18,6 +18,7 @@ import org.springframework.web.bind.annotation.*;
 
 import java.time.OffsetDateTime;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 @RestController
@@ -48,7 +49,50 @@ public class JobController {
         return ResponseEntity.status(HttpStatus.CREATED).body(JobResponse.from(job));
     }
 
-    // ── List by queue ─────────────────────────────────────────────────────────
+    // ── Bulk enqueue ──────────────────────────────────────────────────────────
+
+    /**
+     * POST /api/queues/{queueId}/jobs/bulk
+     *
+     * Body:
+     * {
+     *   "payloads"    : [ { ...job1 }, { ...job2 }, ... ],  // required, max 500
+     *   "priority"    : 0,                                   // optional, default 0
+     *   "maxAttempts" : 3                                    // optional, default 3
+     * }
+     *
+     * Returns: { "enqueued": N, "queueId": "...", "jobIds": [...] }
+     */
+    @PostMapping("/api/queues/{queueId}/jobs/bulk")
+    public ResponseEntity<BulkEnqueueResponse> bulkEnqueue(
+            @PathVariable UUID queueId,
+            @RequestBody BulkEnqueueRequest req) {
+
+        int priority    = req.priority()    > 0 ? req.priority()    : 0;
+        int maxAttempts = req.maxAttempts() > 0 ? req.maxAttempts() : 3;
+
+        List<Job> jobs = jobService.bulkEnqueue(
+                queueId, req.payloads(), priority, maxAttempts);
+
+        List<String> jobIds = jobs.stream()
+                .map(j -> j.getId().toString())
+                .toList();
+
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(new BulkEnqueueResponse(jobs.size(), queueId.toString(), jobIds));
+    }
+
+    public record BulkEnqueueRequest(
+            List<Map<String, Object>> payloads,
+            int priority,
+            int maxAttempts
+    ) {}
+
+    public record BulkEnqueueResponse(
+            int enqueued,
+            String queueId,
+            List<String> jobIds
+    ) {}
 
     /**
      * GET /api/queues/{queueId}/jobs?status=pending&page=0&size=20

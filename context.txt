@@ -790,3 +790,153 @@ CHANGE LOG
               4. Set upstash.redis.url and upstash.redis.password in application.properties
               5. Restart backend
 
+
+2026-08-22  Fixed executor queue name mismatch — executors were not routing.
+
+            Bug: All jobs ran the "fallback stub" (200-600ms sleep) instead of their
+            real executor. Log showed: "No executor registered for queue 'email'".
+            Root cause: queueName() in each executor returned the class name
+            (e.g. "EmailJobExecutor") but the actual queues were named "email",
+            "Calculate", "Demo-Task", "Notification", "Pdf-Extract".
+            Fix: Updated queueName() in each executor to match actual queue names:
+              EmailJobExecutor     → "email"
+              CalculateExecutor    → "Calculate"
+              DemoTaskExecutor     → "Demo-Task"
+              NotificationJobExecutor → "Notification"
+              PdfJobExecutor       → "Pdf-Extract"
+
+
+2026-08-22  Implemented result storage + display for Calculate queue.
+
+            Backend:
+            - Job.java: Added result JSONB field (@Type JsonBinaryType)
+            - JobService.java: Added storeResult(UUID jobId, Map result)
+            - CalculateExecutor.java: Calls jobService.storeResult() after computing,
+              stores { operation, values, result } map
+            - JobResponse.java: Added result field + j.getResult() in from()
+            Database: ALTER TABLE jobs ADD COLUMN IF NOT EXISTS result JSONB;
+
+            Frontend:
+            - types/index.ts: Added result: Record<string,unknown>|null to Job interface
+            - JobsPage.tsx: Added JobResult component that renders per executor type:
+                Calculate    → green card: Operation, Values, big result number
+                Demo-Task    → indigo card: Status, Duration, Message in quotes
+                Notification → teal card: Status, Recipient, Channel, Message, timestamp
+                PDF          → orange card: File, Pages, Words, Size, Summary pre-block
+                Generic      → raw JSON fallback
+
+
+2026-08-22  Overhauled all 3 remaining executors + PDF upload + notification inbox.
+
+            ── EXECUTOR REWRITES ─────────────────────────────────────────────
+
+            DemoTaskExecutor.java
+              - Payload: { "message": "Hello from Demo Task" }
+              - Logs: "Demo Task Started" → sleeps 3 s → logs message → "Demo Task Completed"
+              - Stores result: { status, message, startedAt, finishedAt, durationMs }
+              - Injected: JobService
+
+            NotificationJobExecutor.java
+              - Payload changed: userId (number) → userEmail (string email)
+              - Looks up User by email via UserRepository.findByEmail()
+              - Saves Notification entity to notifications table (user inbox)
+              - Stores result: { status, userEmail, channel, message, deliveredAt }
+              - Injected: UserRepository, NotificationRepository, JobService
+
+            PdfJobExecutor.java
+              - Uses Apache PDFBox 3.0.3 (added to pom.xml)
+              - Downloads PDF from fileUrl, validates %PDF magic bytes
+              - Extracts text with Loader.loadPDF + PDFTextStripper
+              - Stores result: { fileName, sizeBytes, pageCount, wordCount, summary (500 chars) }
+              - Injected: JobService
+
+            ── NEW BACKEND FILES ─────────────────────────────────────────────
+
+            entity/Notification.java
+              - Fields: id, user (ManyToOne→User), title, message, channel, isRead, createdAt
+              - Table: notifications
+
+            repository/NotificationRepository.java
+              - findByUserIdOrderByCreatedAtDesc
+              - countByUserIdAndIsReadFalse
+              - markAllReadForUser  (JPQL UPDATE)
+              - markOneRead(id, userId) (JPQL UPDATE)
+
+            controller/NotificationController.java
+              - GET  /api/notifications              → list all for current user
+              - GET  /api/notifications/unread-count → { count: N }
+              - POST /api/notifications/mark-all-read
+              - POST /api/notifications/{id}/mark-read
+              - Inner record: NotificationDto
+
+            controller/UploadController.java
+              - POST /api/upload/pdf          → save PDF to temp dir, return { fileName, fileUrl }
+              - GET  /api/upload/files/{name} → serve saved file (public, no auth)
+              - upload.dir defaults to java.io.tmpdir
+
+            ── MODIFIED BACKEND FILES ────────────────────────────────────────
+
+            SecurityConfig.java
+              - Added: .requestMatchers("/api/upload/files/**").permitAll()
+              - Fixes HTTP 401 when PdfJobExecutor downloads the uploaded file
+
+            pom.xml
+              - Added: org.apache.pdfbox:pdfbox:3.0.3
+
+            ── DATABASE CHANGES ──────────────────────────────────────────────
+
+            notifications table (already run in Supabase):
+              CREATE TABLE notifications (
+                id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                title TEXT NOT NULL DEFAULT 'Notification',
+                message TEXT NOT NULL,
+                channel VARCHAR(20) NOT NULL DEFAULT 'in-app',
+                is_read BOOLEAN NOT NULL DEFAULT FALSE,
+                created_at TIMESTAMPTZ DEFAULT NOW()
+              );
+              Indexes: idx_notifications_user_id, idx_notifications_unread
+
+            jobs table:
+              ALTER TABLE jobs ADD COLUMN IF NOT EXISTS result JSONB;
+
+            ── NEW FRONTEND FILES ────────────────────────────────────────────
+
+            frontend/src/api/notifications.ts
+              - notificationsApi: list(), unreadCount(), markAllRead(), markOneRead(id)
+              - NotificationItem interface
+
+            frontend/src/components/InboxPanel.tsx
+              - Slide-in panel from right (380px wide) with backdrop
+              - Lists all notifications, unread highlighted in indigo
+              - Click notification → mark as read
+              - "Mark all read" button
+              - Channel emoji: 📩 in-app, 🔔 push, 💬 sms
+              - Props: onClose, onRead
+
+            ── MODIFIED FRONTEND FILES ───────────────────────────────────────
+
+            frontend/src/components/Layout.tsx
+              - Added Inbox button in sidebar (below "All Jobs")
+              - Unread badge (accent color, count) shown when unread > 0
+              - Polls unread count every 10 s
+              - Opens InboxPanel on click
+
+            frontend/src/components/EnqueueJobModal.tsx
+              - Notification: userId input → userEmail email input
+              - Demo-Task: replaced duration/shouldFail → single "message" textarea
+              - Pdf-Extract: replaced text fileUrl → dashed file-picker that uploads
+                via POST /api/upload/pdf and auto-fills fileName + fileUrl
+              - New pdf-upload field type with file input ref + upload progress state
+
+            frontend/src/pages/JobsPage.tsx
+              - Notification result card: shows userEmail as Recipient, not userId
+              - "Stored in recipient's inbox" note added to notification result card
+
+            ── KNOWN ISSUES ─────────────────────────────────────────────────
+
+            - PDF upload stores files in system temp dir (not persistent — use S3 in prod)
+            - NotificationJobExecutor throws if recipient email not found in users table
+              (user must have logged in at least once)
+            - Notification push/sms channels are still simulated (Thread.sleep)
+

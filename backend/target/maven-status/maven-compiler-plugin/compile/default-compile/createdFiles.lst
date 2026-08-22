@@ -23,6 +23,7 @@ com\jobscheduler\dto\PageResponse.class
 com\jobscheduler\dto\QueueRequest.class
 com\jobscheduler\controller\QueueController.class
 com\jobscheduler\entity\Job.class
+com\jobscheduler\controller\JobController$BulkEnqueueRequest.class
 com\jobscheduler\worker\JobPoller.class
 com\jobscheduler\controller\NotificationController$NotificationDto.class
 com\jobscheduler\entity\JobAttempt$JobAttemptBuilder.class
@@ -62,6 +63,7 @@ com\jobscheduler\entity\User$UserBuilder.class
 com\jobscheduler\entity\DeadLetterEntry$DeadLetterEntryBuilder.class
 com\jobscheduler\controller\JobController.class
 com\jobscheduler\executor\DemoTaskExecutor.class
+com\jobscheduler\controller\JobController$BulkEnqueueResponse.class
 com\jobscheduler\controller\JobController$AttemptResponse.class
 com\jobscheduler\entity\JobAttempt.class
 com\jobscheduler\entity\Queue$QueueBuilder.class

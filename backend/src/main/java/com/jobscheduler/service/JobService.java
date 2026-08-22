@@ -53,6 +53,47 @@ public class JobService {
         return jobRepository.save(job);
     }
 
+    /**
+     * Bulk enqueue — insert all jobs in a single transaction.
+     * @param queueId    target queue
+     * @param payloads   list of payload maps — one job per element
+     * @param priority   shared priority applied to every job
+     * @param maxAttempts shared maxAttempts applied to every job
+     * @return list of saved Job entities
+     */
+    @Transactional
+    public List<Job> bulkEnqueue(UUID queueId,
+                                  List<Map<String, Object>> payloads,
+                                  int priority,
+                                  int maxAttempts) {
+
+        if (payloads == null || payloads.isEmpty()) {
+            throw new IllegalArgumentException("Payload array must not be empty");
+        }
+        if (payloads.size() > 500) {
+            throw new IllegalArgumentException(
+                    "Bulk enqueue is limited to 500 jobs per request, got " + payloads.size());
+        }
+
+        Queue queue = queueRepository.findById(queueId)
+                .orElseThrow(() -> new EntityNotFoundException("Queue not found: " + queueId));
+
+        List<Job> jobs = payloads.stream()
+                .map(payload -> Job.builder()
+                        .queue(queue)
+                        .payload(payload)
+                        .priority((short) priority)
+                        .status(Job.JobStatus.pending)
+                        .scheduledAt(OffsetDateTime.now())
+                        .maxAttempts(maxAttempts)
+                        .build())
+                .toList();
+
+        List<Job> saved = jobRepository.saveAll(jobs);
+        log.info("Bulk enqueued {} job(s) onto queue {}", saved.size(), queueId);
+        return saved;
+    }
+
     // ── Query ─────────────────────────────────────────────────────────────────
 
     @Transactional(readOnly = true)
