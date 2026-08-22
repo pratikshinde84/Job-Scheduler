@@ -735,3 +735,58 @@ CHANGE LOG
                Set spring.mail.password=the-16-char-app-password
             4. Restart backend
 
+
+2026-08-22  Implemented Redis sliding-window rate limiting using Upstash.
+
+            Dependencies added (pom.xml):
+              spring-boot-starter-data-redis  (includes Lettuce TLS client)
+
+            New files:
+              backend/src/main/java/com/jobscheduler/config/RedisConfig.java
+                - Parses upstash.redis.url to extract host/port
+                - Creates LettuceConnectionFactory with TLS (useSsl())
+                - Registers StringRedisTemplate bean
+                - Registers slidingWindowScript bean (DefaultRedisScript<Long>)
+                  Lua script: ZREMRANGEBYSCORE (prune old) → ZCARD (count) →
+                  if count < limit: ZADD + PEXPIRE → return 1 else return 0
+
+              backend/src/main/java/com/jobscheduler/ratelimit/RateLimiterService.java
+                - isAllowed(userId, bucket): executes Lua script, returns boolean
+                - remaining(userId, bucket): ZCOUNT for header population
+                - Fails open on Redis error (logs warning, allows request)
+                - Buckets: "default" (100 req/60s) and "enqueue" (20 req/60s)
+                - Key format: rl:<userId>:<bucket>
+
+              backend/src/main/java/com/jobscheduler/ratelimit/RateLimitFilter.java
+                - OncePerRequestFilter, registered BEFORE JwtAuthenticationFilter
+                - Skips: OPTIONS, /actuator/**, non-/api/** paths
+                - Key: userId from JWT (if valid) OR client IP (fallback)
+                - Bucket: POST /api/queues/*/jobs → "enqueue", else "default"
+                - On allowed: sets X-RateLimit-Limit/Remaining/Reset headers
+                - On blocked: HTTP 429 + Retry-After header + JSON body:
+                  { status, error, message, retryAfterSeconds }
+
+            Updated files:
+              SecurityConfig.java: injects RateLimitFilter, registers it before
+                JwtAuthenticationFilter via addFilterBefore()
+              application.properties: added Upstash Redis + rate limit config
+
+            application.properties keys added:
+              upstash.redis.url        — rediss://... URL from Upstash console
+              upstash.redis.password   — Redis password from Upstash console
+              spring.data.redis.url    — delegates to upstash.redis.url
+              spring.data.redis.password
+              spring.data.redis.ssl.enabled=true
+              ratelimit.enabled=true
+              ratelimit.default.limit=100
+              ratelimit.default.window-seconds=60
+              ratelimit.enqueue.limit=20
+              ratelimit.enqueue.window-seconds=60
+
+            To configure Upstash:
+              1. Go to console.upstash.com → create a Redis database
+              2. Copy the "Redis URL" (starts with rediss://)
+              3. Copy the password (shown separately)
+              4. Set upstash.redis.url and upstash.redis.password in application.properties
+              5. Restart backend
+
