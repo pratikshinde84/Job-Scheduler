@@ -19,6 +19,7 @@ export const jobsApi = {
     priority?: number
     scheduledAt?: string
     maxAttempts?: number
+    concurrency?: number
     retryConfig?: RetryConfig
   }) =>
     api.post<Job>(`/queues/${queueId}/jobs`, payload).then((r) => r.data),
@@ -33,8 +34,10 @@ export const jobsApi = {
     payloads: Record<string, unknown>[]
     priority?: number
     maxAttempts?: number
+    concurrency?: number
   }) =>
     api.post<{ enqueued: number; queueId: string; jobIds: string[] }>(
       `/queues/${queueId}/jobs/bulk`, body
     ).then((r) => r.data),
+
 }

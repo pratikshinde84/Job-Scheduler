@@ -105,6 +105,7 @@ export default function BulkEnqueueModal({
   const [jsonText, setJsonText]   = useState('')
   const [priority, setPriority]   = useState(0)
   const [maxAttempts, setMaxAttempts] = useState(3)
+  const [concurrency, setConcurrency] = useState(5)
 
   const [validation, setValidation] = useState<ValidationResult>(
     { valid: false, parsed: null, errorLine: null, errorMessage: null }
@@ -112,6 +113,16 @@ export default function BulkEnqueueModal({
   const [submitState, setSubmitState] = useState<SubmitState>({ phase: 'idle' })
 
   const selectedQueue = lockedQueue ?? queues.find(q => q.id === selectedQueueId) ?? null
+
+  // Sync concurrency when queue changes
+  useEffect(() => {
+    if (selectedQueue?.concurrencyLimit) {
+      setConcurrency(selectedQueue.concurrencyLimit)
+    } else {
+      setConcurrency(5)
+    }
+  }, [selectedQueue])
+
 
   // ── Load projects ─────────────────────────────────────────────────────────
   useEffect(() => {
@@ -163,10 +174,12 @@ export default function BulkEnqueueModal({
         payloads: validation.parsed,
         priority,
         maxAttempts,
+        concurrency,
       })
       setSubmitState({ phase: 'done', enqueued: result.enqueued })
       onSuccess(result.enqueued)
     } catch (err: unknown) {
+
       const msg = (err as { response?: { data?: { detail?: string } } })
         ?.response?.data?.detail ?? 'Failed to enqueue jobs.'
       setSubmitState({ phase: 'error', message: msg })
@@ -259,16 +272,14 @@ export default function BulkEnqueueModal({
                       style={{ ...s.input, width: 80 }} />
                     <p style={s.hint}>Retries on failure</p>
                   </div>
-                  {selectedQueue.concurrencyLimit && (
-                    <div>
-                      <label style={s.fieldLabel}>Queue Concurrency</label>
-                      <div style={{ fontFamily: 'var(--mono)', fontSize: 18, fontWeight: 700,
-                                    color: 'var(--accent)', paddingTop: 4 }}>
-                        {selectedQueue.concurrencyLimit}
-                      </div>
-                      <p style={s.hint}>parallel workers</p>
-                    </div>
-                  )}
+                  <div>
+                    <label style={s.fieldLabel}>Concurrency <span style={s.pill}>1–100</span></label>
+                    <input type="number" min={1} max={100} value={concurrency}
+                      onChange={e => setConcurrency(Number(e.target.value))}
+                      style={{ ...s.input, width: 80 }} />
+                    <p style={s.hint}>parallel limit (default: 5)</p>
+                  </div>
+
                 </div>
               </section>
             )}

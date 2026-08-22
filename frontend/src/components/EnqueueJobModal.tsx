@@ -199,6 +199,7 @@ export default function EnqueueJobModal({ lockedQueue, lockedProjectId, onClose,
   const [showSchema, setShowSchema]   = useState(false)
   const [priority, setPriority]       = useState(0)
   const [maxAttempts, setMaxAttempts] = useState(3)
+  const [concurrency, setConcurrency] = useState(5)
   const [submitting, setSubmitting]   = useState(false)
   const [submitError, setSubmitError] = useState<string | null>(null)
 
@@ -214,6 +215,16 @@ export default function EnqueueJobModal({ lockedQueue, lockedProjectId, onClose,
   const executorDef     = selectedQueue ? getExecutorDef(selectedQueue.name) : null
   const isExecutorQueue = !!executorDef
   const isPdfQueue      = executorDef?.fields.some(f => f.type === 'pdf-upload') ?? false
+
+  // Sync concurrency when queue changes
+  useEffect(() => {
+    if (selectedQueue?.concurrencyLimit) {
+      setConcurrency(selectedQueue.concurrencyLimit)
+    } else {
+      setConcurrency(5)
+    }
+  }, [selectedQueue])
+
 
   // Load projects
   useEffect(() => {
@@ -334,7 +345,7 @@ export default function EnqueueJobModal({ lockedQueue, lockedProjectId, onClose,
     if (!payload) return
     setSubmitting(true)
     try {
-      await jobsApi.enqueue(selectedQueue.id, { payload, maxAttempts, priority })
+      await jobsApi.enqueue(selectedQueue.id, { payload, maxAttempts, priority, concurrency })
       onSuccess(); onClose()
     } catch {
       setSubmitError('Failed to enqueue job. Check that the queue is active.')
@@ -342,6 +353,7 @@ export default function EnqueueJobModal({ lockedQueue, lockedProjectId, onClose,
       setSubmitting(false)
     }
   }
+
 
   // ── Field renderer ────────────────────────────────────────────────────────
 
@@ -593,7 +605,15 @@ export default function EnqueueJobModal({ lockedQueue, lockedProjectId, onClose,
                       style={{ ...s.input, width: 80 }} />
                     <p style={s.fieldHint}>Retries on failure</p>
                   </div>
+                  <div style={s.fieldGroup}>
+                    <label style={s.fieldLabel}>Concurrency <span style={s.schemaTypePill}>1–100</span></label>
+                    <input type="number" min={1} max={100} value={concurrency}
+                      onChange={e => setConcurrency(Number(e.target.value))}
+                      style={{ ...s.input, width: 80 }} />
+                    <p style={s.fieldHint}>Parallel limit (default: 5)</p>
+                  </div>
                 </div>
+
               </div>
             )}
 
