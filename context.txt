@@ -472,3 +472,266 @@ CHANGE LOG
             all frontend pages/components/hooks/API clients, routing, and types.
 
 ================================================================================
+
+2026-08-22  Fixed OAuth redirect-back-to-login race condition.
+
+            Root causes:
+            1. AuthCallbackPage called getSession() immediately after the OAuth
+               redirect. Supabase hadn't finished parsing the URL hash token yet,
+               so getSession() returned null and the page navigated to /login.
+            2. useSupabaseAuth called both getSession() AND onAuthStateChange.
+               Between getSession() resolving (null) and onAuthStateChange firing
+               (with the real session), loading was false + session was null —
+               causing ProtectedRoute to redirect to /login.
+
+            Fixes applied:
+            - AuthCallbackPage (frontend/src/pages/AuthCallbackPage.tsx):
+              Now checks getSession() first; if null, subscribes to
+              onAuthStateChange and waits for the SIGNED_IN event before
+              navigating. Added a 5 s safety timeout fallback.
+            - useSupabaseAuth (frontend/src/hooks/useSupabaseAuth.ts):
+              Removed the getSession() call entirely. Now relies solely on
+              onAuthStateChange, which fires INITIAL_SESSION with the current
+              session (or null) and is the authoritative signal to set
+              loading=false. Subscribing first ensures no event is missed.
+
+
+2026-08-22  Fixed worker_status PostgreSQL enum type mismatch error.
+
+            Error: "column status is of type worker_status but expression is of
+            type character varying" thrown by CronScheduler.heartbeat() on every
+            scheduled tick.
+
+            Root cause: The live Supabase database had a real PostgreSQL enum
+            type `worker_status` on workers.status (and possibly `job_status` on
+            jobs.status). The schema.sql file correctly defines these as
+            VARCHAR(20) + CHECK constraints for Hibernate @Enumerated(STRING)
+            compatibility, but the live DB was out of sync.
+
+            Fix: Run the following in Supabase SQL Editor to align the live DB
+            with schema.sql:
+
+              ALTER TABLE workers
+                ALTER COLUMN status TYPE VARCHAR(20)
+                USING status::text;
+              ALTER TABLE workers
+                ADD CONSTRAINT workers_status_check
+                CHECK (status IN ('active', 'draining', 'offline'));
+
+            Also verify jobs.status with:
+              SELECT column_name, data_type, udt_name
+              FROM information_schema.columns
+              WHERE table_name IN ('workers', 'jobs') AND column_name = 'status';
+            If udt_name shows job_status (not varchar), apply same ALTER TABLE
+            to jobs table.
+
+            No Java code changes needed — the entity and repository were already
+            correct. upsertHeartbeat in WorkerRepository already used CAST to
+            handle the native query path.
+
+
+2026-08-22  Added 5 named executor queues with real backend logic and frontend payload templates.
+
+            Backend — new package: backend/src/main/java/com/jobscheduler/executor/
+
+            JobExecutor.java (interface)
+              - queueName() : String  — the queue name this executor handles
+              - execute(Job) : void   — throws on failure to trigger retry
+
+            DemoTaskExecutor.java
+              - Queue name : "DemoTaskExecutor"
+              - Payload    : { duration: int (seconds), shouldFail: boolean }
+              - Logic      : sleeps in 500 ms chunks for `duration` seconds,
+                             then throws if shouldFail=true
+
+            EmailJobExecutor.java
+              - Queue name : "EmailJobExecutor"
+              - Payload    : { to, subject, body }
+              - Logic      : validates required fields, simulates SMTP round-trip (300 ms),
+                             logs delivery. Replace Thread.sleep with real JavaMailSender/SES.
+
+            NotificationJobExecutor.java
+              - Queue name : "NotificationJobExecutor"
+              - Payload    : { userId, message, channel (push|sms|in-app, default: in-app) }
+              - Logic      : routes to simulatePush/simulateSms/simulateInApp.
+                             Replace stubs with FCM/APNs/WebSocket calls.
+
+            PdfJobExecutor.java
+              - Queue name : "PdfJobExecutor"
+              - Payload    : { fileName, fileUrl }
+              - Logic      : downloads PDF via Java HttpClient, validates magic bytes (%PDF),
+                             enforces 20 MB size limit. Replace stub with PDFBox/iText.
+
+            CalculateExecutor.java
+              - Queue name : "CalculateExecutor"
+              - Payload    : { operation (SUM|AVERAGE|MIN|MAX|MULTIPLY), values: number[] }
+              - Logic      : validates inputs, runs Java streams calculation, logs result.
+
+            JobPoller.java (rewritten)
+              - Constructor now accepts List<JobExecutor> from Spring DI
+              - Builds executorRegistry map: queueName.toLowerCase() → executor bean
+              - dispatch(job, queueName) looks up executor by queue name (case-insensitive)
+              - Falls back to fallbackStub (200–600 ms sleep) for unregistered queues
+              - Logs registered executors at startup
+
+            Frontend — JobsPage.tsx updated
+
+            QUEUE_PAYLOAD_TEMPLATES map (keyed by lower-case queue name):
+              demotaskexecutor, emailjobexecutor, notificationjobexecutor,
+              pdfjobexecutor, calculateexecutor
+
+            EXECUTOR_DESCRIPTIONS map: one-line hint shown below the page title
+            when viewing a known executor queue.
+
+            Enqueue form changes:
+              - showEnqueue useEffect: pre-fills payloadText with template on open
+              - "↺ Reset to template" button restores the sample payload
+              - Blue left-border hint bar: "Sample payload pre-filled — edit as needed"
+              - textarea border turns red on JSON parse error
+              - "executor queue" badge shown in queue metadata row for known queues
+
+
+2026-08-22  Fixed persistent redirect-to-login after successful OAuth sign-in (second attempt).
+
+            Root causes found:
+            1. React.StrictMode double-invokes useEffect in development. The
+               AuthCallbackPage subscription was torn down and recreated after
+               the SIGNED_IN event already fired — causing the timeout fallback
+               to redirect to /login every time.
+            2. The cleanup return inside AuthCallbackPage was inside a .then()
+               callback, so React could never call it. Subscription and timeout
+               were never properly cleaned up.
+            3. useSupabaseAuth fired onAuthStateChange INITIAL_SESSION with null
+               before getSession() resolved, setting loading=false + session=null,
+               causing ProtectedRoute to redirect before the real session arrived.
+
+            Fixes applied:
+            - main.tsx: Removed React.StrictMode entirely (it breaks Supabase
+              OAuth token parsing in development via double-invoke).
+            - AuthCallbackPage.tsx: Full rewrite. Subscription and timeout stored
+              in let variables (not inside .then), cleanup returned directly from
+              useEffect. navigatedRef prevents double-navigation on StrictMode
+              double-invoke. Subscribes first, then calls getSession() as fast
+              path. 10 s timeout safety net.
+            - useSupabaseAuth.ts: Restored getSession() as the authoritative
+              initial-load mechanism (sets loading=false). onAuthStateChange now
+              skips INITIAL_SESSION (already handled). mounted flag prevents
+              setState after unmount.
+
+
+2026-08-22  Fixed two backend errors: prepared statement cache conflict and worker_status enum.
+
+            Error 1: "prepared statement S_x already exists"
+            Cause: Supabase transaction pooler (port 6543) hands out a fresh
+            PostgreSQL backend connection per transaction. Hibernate's server-side
+            prepared statement cache creates named statements (S_1, S_2, …) that
+            don't survive connection recycling. On the next transaction, Hibernate
+            tries to reuse S_x on a fresh connection that doesn't have it → error.
+            Fix: Added to JDBC URL:
+              prepareThreshold=0            — disable server-side PS creation
+              preparedStatementCacheQueries=0 — disable driver-side PS cache
+            Also added hikari.keepalive-time=60000 to keep idle connections alive.
+            File: backend/src/main/resources/application.properties
+
+            Error 2: "column status is of type worker_status but expression is of
+            type character varying" — still occurring because the Supabase DB still
+            has a real PG enum type on workers.status.
+            Fix (Java side — works regardless of whether DB is enum or VARCHAR):
+            - Worker.java: Replaced @Enumerated(EnumType.STRING) with
+              @Convert(converter = WorkerStatusConverter.class). The converter
+              writes a PGobject of type "worker_status" so PostgreSQL receives
+              a properly typed value in INSERT/UPDATE.
+            - WorkerRepository.java: Changed findByStatus() to a native query
+              with CAST(:status AS worker_status). Changed findStaleWorkers() to
+              a native query to avoid JPQL enum binding issues with the converter.
+            Files: Worker.java, WorkerRepository.java
+
+            Still recommended: run the ALTER TABLE fix in Supabase SQL Editor
+            to convert workers.status from enum to VARCHAR (see entry 2026-08-22
+            "Fixed worker_status PostgreSQL enum type mismatch error") so the
+            schema matches schema.sql. The Java fix above is a resilient fallback
+            that works either way.
+
+
+2026-08-22  Added EnqueueJobModal — proper form-based enqueue UI with queue selector and field editors.
+
+            New file: frontend/src/components/EnqueueJobModal.tsx
+
+            Features:
+            - Project dropdown (loads all user projects)
+            - Queue dropdown (loads queues for selected project, auto-selects first)
+            - For known executor queues: renders labeled input fields per queue type
+              (text, email, number, textarea, select, boolean toggle)
+            - For unknown queues: falls back to raw JSON textarea editor
+            - Priority (0–100) and Max Attempts (1–20) options section
+            - Submit calls jobsApi.enqueue, closes on success
+            - Click outside overlay to close
+            - Can be opened with lockedQueue prop (skips selectors, used from queue/jobs pages)
+
+            Executor field definitions (EXECUTOR_DEFS map):
+              emailjobexecutor        → to (email), subject (text), body (textarea)
+              notificationjobexecutor → userId (number), message (textarea), channel (select)
+              demotaskexecutor        → duration (number), shouldFail (boolean toggle)
+              pdfjobexecutor          → fileName (text), fileUrl (text)
+              calculateexecutor       → operation (select), values (comma-separated text → number[])
+
+            Updated: frontend/src/pages/QueuesPage.tsx
+              - Added "+ Enqueue" button on each queue row
+              - Opens EnqueueJobModal with lockedQueue set to that queue
+
+            Updated: frontend/src/pages/JobsPage.tsx
+              - Removed inline enqueue form
+              - "+ Enqueue Job" button now opens EnqueueJobModal with lockedQueue=current queue
+              - Removed QUEUE_PAYLOAD_TEMPLATES and EXECUTOR_DESCRIPTIONS (moved to modal)
+
+
+2026-08-22  Enhanced EnqueueJobModal with schema panel and fuzzy queue name matching.
+
+            Changes to frontend/src/components/EnqueueJobModal.tsx:
+
+            Schema panel:
+            - "{ } Schema" button in the modal header (visible for executor queues)
+            - Slides open below the header showing a table: Field | Type | Required | Notes
+            - Each row shows the field key (monospace), schema type, required flag, and
+              options/hints
+            - Followed by a "EXAMPLE PAYLOAD" pre block showing the full JSON template
+
+            Field labels now show a type pill (e.g. "string", "number", "boolean",
+            "number[]", '"SUM" | "AVERAGE" | ...') inline next to the label text.
+
+            Queue name matching now handles all real-world naming variants:
+            - Exact lower-case match
+            - Normalised match (strips spaces, hyphens, underscores)
+            - Covers: "email", "EmailJobExecutor", "email-job", "Demo-Task",
+              "demo_task", "Pdf-Extract", "pdfextract", "Calculate", etc.
+            - getExecutorDef(queueName) tries lower → normalised → null (raw JSON fallback)
+
+
+2026-08-22  Fixed LazyInitializationException in JobPoller + wired real email sending.
+
+            Bug: Jobs failed with "could not initialize proxy [Queue#...] — no Session".
+            Root cause: executeAsync() is @Async — it runs in a separate thread with no
+            JPA session. Calling job.getQueue().getName() inside that thread triggered a
+            lazy load on the Queue proxy, which failed because the session was closed.
+
+            Fix (JobPoller.java):
+            - poll() now resolves queue.getName() while still in the main thread (session open)
+            - Passes resolvedQueueName as a plain String into executeAsync()
+            - executeAsync signature: executeAsync(Job job, String queueName, Semaphore sem)
+            - No more lazy proxy access inside the async thread
+
+            Also added real email sending:
+            - Added spring-boot-starter-mail to pom.xml
+            - Rewrote EmailJobExecutor to inject JavaMailSender and call mailSender.send()
+            - Added spring.mail.* config block to application.properties (Gmail/SMTP)
+            - User must fill in spring.mail.username and spring.mail.password (App Password)
+              before email jobs will actually deliver. See:
+              https://myaccount.google.com/apppasswords
+
+            To configure email:
+            1. Go to Google Account → Security → App Passwords
+            2. Generate an app password for "Mail"
+            3. Set spring.mail.username=your-email@gmail.com
+               Set spring.mail.password=the-16-char-app-password
+            4. Restart backend
+

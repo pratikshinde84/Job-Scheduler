@@ -2,6 +2,7 @@ com\jobscheduler\entity\User.class
 com\jobscheduler\dto\JobResponse.class
 com\jobscheduler\security\UserContext.class
 com\jobscheduler\controller\ProjectController.class
+com\jobscheduler\executor\PdfJobExecutor.class
 com\jobscheduler\entity\Project$ProjectBuilder.class
 com\jobscheduler\dto\QueueResponse.class
 com\jobscheduler\security\SecurityConfig.class
@@ -11,8 +12,10 @@ com\jobscheduler\security\JwtAuthenticationFilter.class
 com\jobscheduler\repository\DeadLetterRepository.class
 com\jobscheduler\dto\ProjectResponse.class
 com\jobscheduler\repository\ProjectRepository.class
+com\jobscheduler\executor\CalculateExecutor.class
 com\jobscheduler\repository\JobAttemptRepository.class
 com\jobscheduler\entity\Queue.class
+com\jobscheduler\executor\NotificationJobExecutor.class
 com\jobscheduler\controller\GlobalExceptionHandler.class
 com\jobscheduler\dto\PageResponse.class
 com\jobscheduler\dto\QueueRequest.class
@@ -20,6 +23,7 @@ com\jobscheduler\controller\QueueController.class
 com\jobscheduler\entity\Job.class
 com\jobscheduler\worker\JobPoller.class
 com\jobscheduler\entity\JobAttempt$JobAttemptBuilder.class
+com\jobscheduler\executor\JobExecutor.class
 com\jobscheduler\entity\Job$JobStatus.class
 com\jobscheduler\worker\CronScheduler.class
 com\jobscheduler\worker\Reaper.class
@@ -30,6 +34,7 @@ com\jobscheduler\repository\JobRepository.class
 com\jobscheduler\entity\Job$JobBuilder.class
 com\jobscheduler\repository\OrganizationRepository.class
 com\jobscheduler\entity\Organization.class
+com\jobscheduler\executor\EmailJobExecutor.class
 com\jobscheduler\service\ProjectService.class
 com\jobscheduler\dto\ProjectRequest.class
 com\jobscheduler\repository\QueueRepository.class
@@ -47,6 +52,7 @@ com\jobscheduler\security\JwtService.class
 com\jobscheduler\entity\User$UserBuilder.class
 com\jobscheduler\entity\DeadLetterEntry$DeadLetterEntryBuilder.class
 com\jobscheduler\controller\JobController.class
+com\jobscheduler\executor\DemoTaskExecutor.class
 com\jobscheduler\controller\JobController$AttemptResponse.class
 com\jobscheduler\entity\JobAttempt.class
 com\jobscheduler\entity\Queue$QueueBuilder.class

@@ -19,6 +19,12 @@ E:\Desktop\Job-Scheduler\backend\src\main\java\com\jobscheduler\entity\Project.j
 E:\Desktop\Job-Scheduler\backend\src\main\java\com\jobscheduler\entity\Queue.java
 E:\Desktop\Job-Scheduler\backend\src\main\java\com\jobscheduler\entity\User.java
 E:\Desktop\Job-Scheduler\backend\src\main\java\com\jobscheduler\entity\Worker.java
+E:\Desktop\Job-Scheduler\backend\src\main\java\com\jobscheduler\executor\CalculateExecutor.java
+E:\Desktop\Job-Scheduler\backend\src\main\java\com\jobscheduler\executor\DemoTaskExecutor.java
+E:\Desktop\Job-Scheduler\backend\src\main\java\com\jobscheduler\executor\EmailJobExecutor.java
+E:\Desktop\Job-Scheduler\backend\src\main\java\com\jobscheduler\executor\JobExecutor.java
+E:\Desktop\Job-Scheduler\backend\src\main\java\com\jobscheduler\executor\NotificationJobExecutor.java
+E:\Desktop\Job-Scheduler\backend\src\main\java\com\jobscheduler\executor\PdfJobExecutor.java
 E:\Desktop\Job-Scheduler\backend\src\main\java\com\jobscheduler\JobSchedulerApplication.java
 E:\Desktop\Job-Scheduler\backend\src\main\java\com\jobscheduler\repository\DeadLetterRepository.java
 E:\Desktop\Job-Scheduler\backend\src\main\java\com\jobscheduler\repository\JobAttemptRepository.java

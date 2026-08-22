@@ -1,56 +1,70 @@
-import { useEffect } from 'react'
+import { useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabaseClient'
 
 /**
  * Landing page after OAuth redirect.
  *
- * We MUST listen to onAuthStateChange here instead of calling getSession()
- * directly. When Supabase redirects back with a token in the URL hash, the
- * client needs a tick to parse the fragment and exchange it for a session.
- * Calling getSession() synchronously returns null during that window, which
- * causes an immediate redirect back to /login.
+ * Strategy:
+ * 1. Subscribe to onAuthStateChange immediately (before any async work) so
+ *    the SIGNED_IN event is never missed regardless of timing.
+ * 2. Then call getSession() — if a session is already parsed (fast path),
+ *    navigate right away and cancel the subscription.
+ * 3. If getSession() returns null, wait for SIGNED_IN from the subscription.
+ * 4. A 10 s timeout guards against edge cases.
  *
- * onAuthStateChange fires SIGNED_IN once the session is actually ready,
- * giving us a reliable signal to navigate to the dashboard.
+ * The subscription and timeout refs allow the cleanup to always fire correctly
+ * even in React StrictMode (double-invoke) or fast unmounts.
  */
 export default function AuthCallbackPage() {
   const navigate = useNavigate()
+  const navigatedRef = useRef(false)   // prevent double-navigation
 
   useEffect(() => {
-    // First check: maybe the session is already available (e.g. page refresh
-    // on /auth/callback after a successful sign-in).
+    let timeoutId: ReturnType<typeof setTimeout>
+
+    const goTo = (path: string) => {
+      if (navigatedRef.current) return
+      navigatedRef.current = true
+      navigate(path, { replace: true })
+    }
+
+    // Step 1 — subscribe first so we never miss the event
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      (event, session) => {
+        if (event === 'SIGNED_IN' && session) {
+          clearTimeout(timeoutId)
+          subscription.unsubscribe()
+          goTo('/')
+        } else if (event === 'SIGNED_OUT') {
+          clearTimeout(timeoutId)
+          subscription.unsubscribe()
+          goTo('/login')
+        }
+        // Ignore INITIAL_SESSION — handled by getSession() below
+      }
+    )
+
+    // Step 2 — fast path: session already available
     supabase.auth.getSession().then(({ data }) => {
       if (data.session) {
-        navigate('/', { replace: true })
-        return
-      }
-
-      // Session not ready yet — wait for the SIGNED_IN event which fires once
-      // Supabase has finished parsing the token from the URL fragment.
-      const { data: { subscription } } = supabase.auth.onAuthStateChange(
-        (event, session) => {
-          if (event === 'SIGNED_IN' && session) {
-            subscription.unsubscribe()
-            navigate('/', { replace: true })
-          } else if (event === 'SIGNED_OUT' || (event !== 'INITIAL_SESSION' && !session)) {
-            subscription.unsubscribe()
-            navigate('/login', { replace: true })
-          }
-        }
-      )
-
-      // Safety timeout — if nothing fires in 5 s, give up and go to login
-      const timeout = setTimeout(() => {
+        clearTimeout(timeoutId)
         subscription.unsubscribe()
-        navigate('/login', { replace: true })
-      }, 5000)
-
-      return () => {
-        subscription.unsubscribe()
-        clearTimeout(timeout)
+        goTo('/')
       }
     })
+
+    // Step 3 — safety net: give up after 10 s
+    timeoutId = setTimeout(() => {
+      subscription.unsubscribe()
+      goTo('/login')
+    }, 10_000)
+
+    return () => {
+      // Cleanup on unmount (StrictMode double-invoke, fast navigation, etc.)
+      clearTimeout(timeoutId)
+      subscription.unsubscribe()
+    }
   }, [navigate])
 
   return (

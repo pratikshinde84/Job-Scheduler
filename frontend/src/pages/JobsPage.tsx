@@ -6,34 +6,28 @@ import { jobsApi } from '../api/jobs'
 import { usePolling } from '../hooks/usePolling'
 import { useSessionReady } from '../hooks/useSessionReady'
 import { findBySlug } from '../lib/slug'
+import EnqueueJobModal from '../components/EnqueueJobModal'
 import type { Job, JobStatus, Page, Project, Queue } from '../types'
 
 const STATUSES: JobStatus[] = ['pending', 'scheduled', 'claimed', 'running', 'completed', 'failed', 'dead']
 const PAGE_SIZE = 20
 
 export default function JobsPage() {
-  // Slug-based params — e.g. projectName="my-app", queueName="email-notifications"
   const { projectName, queueName } = useParams<{ projectName?: string; queueName?: string }>()
   const navigate = useNavigate()
 
-  const [project, setProject] = useState<Project | null>(null)
-  const [queue, setQueue] = useState<Queue | null>(null)
-  const [page, setPage] = useState<Page<Job> | null>(null)
+  const [project, setProject]       = useState<Project | null>(null)
+  const [queue, setQueue]           = useState<Queue | null>(null)
+  const [page, setPage]             = useState<Page<Job> | null>(null)
   const [currentPage, setCurrentPage] = useState(0)
   const [statusFilter, setStatusFilter] = useState<JobStatus | ''>('')
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
-
-  // Enqueue form
-  const [showEnqueue, setShowEnqueue] = useState(false)
-  const [payloadText, setPayloadText] = useState('{\n  "type": "example"\n}')
-  const [enqueueing, setEnqueueing] = useState(false)
-  const [payloadError, setPayloadError] = useState<string | null>(null)
+  const [loading, setLoading]       = useState(true)
+  const [error, setError]           = useState<string | null>(null)
+  const [showEnqueueModal, setShowEnqueueModal] = useState(false)
 
   const load = useCallback(async () => {
     try {
       if (projectName && queueName) {
-        // Context-specific view: resolve slugs → IDs
         const allProjects = await projectsApi.list()
         const matchedProject = findBySlug(allProjects, projectName)
         if (!matchedProject) {
@@ -59,7 +53,6 @@ export default function JobsPage() {
         })
         setPage(data)
       } else {
-        // Global view: /jobs — show all jobs for the current user
         const data = await jobsApi.listMine({ page: currentPage, size: PAGE_SIZE })
         setPage(data)
       }
@@ -73,30 +66,6 @@ export default function JobsPage() {
 
   const sessionReady = useSessionReady()
   usePolling(load, 4000, sessionReady)
-
-  const handleEnqueue = async (e: React.FormEvent) => {
-    e.preventDefault()
-    if (!queue) return
-    setPayloadError(null)
-    let parsed: Record<string, unknown>
-    try {
-      parsed = JSON.parse(payloadText)
-    } catch {
-      setPayloadError('Payload must be valid JSON.')
-      return
-    }
-    setEnqueueing(true)
-    try {
-      await jobsApi.enqueue(queue.id, { payload: parsed, maxAttempts: 3 })
-      setShowEnqueue(false)
-      setPayloadText('{\n  "type": "example"\n}')
-      load()
-    } catch {
-      alert('Failed to enqueue job.')
-    } finally {
-      setEnqueueing(false)
-    }
-  }
 
   const handleCancel = async (jobId: string) => {
     try {
@@ -119,7 +88,6 @@ export default function JobsPage() {
 
   const isQueueView = Boolean(projectName && queueName)
 
-  // Breadcrumb label
   const breadcrumb = isQueueView ? (
     <nav style={styles.breadcrumb}>
       <Link to="/projects" style={styles.crumbLink}>Projects</Link>
@@ -149,6 +117,7 @@ export default function JobsPage() {
   )
 
   return (
+    <>
     <div style={styles.page}>
       <header style={styles.header}>
         <div>
@@ -167,37 +136,13 @@ export default function JobsPage() {
           )}
         </div>
         {isQueueView && (
-          <button className="btn-primary" onClick={() => setShowEnqueue(v => !v)}>
-            {showEnqueue ? 'Cancel' : '+ Enqueue Job'}
+          <button className="btn-primary" onClick={() => setShowEnqueueModal(true)}>
+            + Enqueue Job
           </button>
         )}
       </header>
 
-      {/* ── Enqueue form ─────────────────────────────────────── */}
-      {showEnqueue && isQueueView && (
-        <form className="card" onSubmit={handleEnqueue} style={{ marginBottom: 20 }}>
-          <h3 style={{ fontSize: 14, fontWeight: 600, marginBottom: 12 }}>Enqueue New Job</h3>
-          <label style={styles.label}>JSON Payload</label>
-          <textarea
-            value={payloadText}
-            onChange={e => setPayloadText(e.target.value)}
-            rows={6}
-            style={{ width: '100%', fontFamily: 'var(--mono)', fontSize: 12,
-                     background: 'var(--bg)', resize: 'vertical' }}
-          />
-          {payloadError && (
-            <p style={{ color: 'var(--danger)', fontSize: 12, marginTop: 4 }}>{payloadError}</p>
-          )}
-          <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 12 }}>
-            <button className="btn-ghost" type="button" onClick={() => setShowEnqueue(false)}>Cancel</button>
-            <button className="btn-primary" type="submit" disabled={enqueueing}>
-              {enqueueing ? 'Enqueueing…' : 'Enqueue'}
-            </button>
-          </div>
-        </form>
-      )}
-
-      {/* ── Status filter ─────────────────────────────────────── */}
+      {/* ── Status filter ────────────────────────────────────────────────── */}
       <div style={styles.filterRow}>
         <button className={statusFilter === '' ? 'btn-primary' : 'btn-ghost'} style={{ fontSize: 12 }}
           onClick={() => { setStatusFilter(''); setCurrentPage(0) }}>All</button>
@@ -249,8 +194,20 @@ export default function JobsPage() {
         </>
       )}
     </div>
+
+    {/* Enqueue modal */}
+    {showEnqueueModal && queue && (
+      <EnqueueJobModal
+        lockedQueue={queue}
+        onClose={() => setShowEnqueueModal(false)}
+        onSuccess={() => { setShowEnqueueModal(false); load() }}
+      />
+    )}
+    </>
   )
 }
+
+// ── Job row component ─────────────────────────────────────────────────────────
 
 function JobRow({ job, onCancel, onRequeue }: {
   job: Job
@@ -258,8 +215,8 @@ function JobRow({ job, onCancel, onRequeue }: {
   onRequeue: (id: string) => void
 }) {
   const [expanded, setExpanded] = useState(false)
-  const canCancel = job.status === 'pending' || job.status === 'scheduled'
-  const canRequeue = job.status === 'dead' || job.status === 'failed'
+  const canCancel  = job.status === 'pending' || job.status === 'scheduled'
+  const canRequeue = job.status === 'dead'    || job.status === 'failed'
 
   return (
     <>
@@ -322,27 +279,29 @@ function JobRow({ job, onCancel, onRequeue }: {
   )
 }
 
+// ── Styles ────────────────────────────────────────────────────────────────────
+
 const styles: Record<string, React.CSSProperties> = {
-  page: { maxWidth: 1100, margin: '0 auto', padding: '32px 24px' },
-  header: { display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 24 },
-  breadcrumb: { display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 },
-  crumbLink: { color: 'var(--text-muted)', fontSize: 12 },
-  crumbSep: { color: 'var(--text-dim)', fontSize: 12 },
-  pageTitle: { fontSize: '22px', fontWeight: 700, marginBottom: 4 },
-  queueMeta: { display: 'flex', gap: 8, alignItems: 'center', marginTop: 4 },
-  metaTag: { background: 'var(--bg-hover)', borderRadius: 10, padding: '2px 8px',
-             fontSize: 11, color: 'var(--text-muted)' },
-  label: { display: 'block', fontSize: 12, color: 'var(--text-muted)', marginBottom: 6 },
-  filterRow: { display: 'flex', flexWrap: 'wrap' as const, gap: 6, marginBottom: 20 },
-  table: { width: '100%', borderCollapse: 'collapse', minWidth: 700 },
-  th: { textAlign: 'left', padding: '8px 12px', color: 'var(--text-muted)', fontSize: 11,
-        fontWeight: 600, textTransform: 'uppercase', borderBottom: '1px solid var(--border)' },
-  td: { padding: '10px 12px', borderBottom: '1px solid var(--border)', fontSize: 13, cursor: 'pointer' },
-  tr: {},
-  pagination: { display: 'flex', alignItems: 'center', justifyContent: 'center',
-                gap: 16, padding: '20px 0' },
-  pre: { fontFamily: 'var(--mono)', fontSize: 11, whiteSpace: 'pre-wrap', wordBreak: 'break-all',
-         background: 'var(--bg)', padding: 8, borderRadius: 6, maxHeight: 180, overflow: 'auto' },
-  detailLabel: { fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', marginBottom: 6,
-                 textTransform: 'uppercase' },
+  page:          { maxWidth: 1100, margin: '0 auto', padding: '32px 24px' },
+  header:        { display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 24 },
+  breadcrumb:    { display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 },
+  crumbLink:     { color: 'var(--text-muted)', fontSize: 12 },
+  crumbSep:      { color: 'var(--text-dim)', fontSize: 12 },
+  pageTitle:     { fontSize: '22px', fontWeight: 700, marginBottom: 4 },
+  queueMeta:     { display: 'flex', gap: 8, alignItems: 'center', marginTop: 4, flexWrap: 'wrap' },
+  metaTag:       { background: 'var(--bg-hover)', borderRadius: 10, padding: '2px 8px',
+                   fontSize: 11, color: 'var(--text-muted)' },
+  label:         { display: 'block', fontSize: 12, color: 'var(--text-muted)', marginBottom: 6 },
+  filterRow:     { display: 'flex', flexWrap: 'wrap' as const, gap: 6, marginBottom: 20 },
+  table:         { width: '100%', borderCollapse: 'collapse', minWidth: 700 },
+  th:            { textAlign: 'left', padding: '8px 12px', color: 'var(--text-muted)', fontSize: 11,
+                   fontWeight: 600, textTransform: 'uppercase', borderBottom: '1px solid var(--border)' },
+  td:            { padding: '10px 12px', borderBottom: '1px solid var(--border)', fontSize: 13, cursor: 'pointer' },
+  tr:            {},
+  pagination:    { display: 'flex', alignItems: 'center', justifyContent: 'center',
+                   gap: 16, padding: '20px 0' },
+  pre:           { fontFamily: 'var(--mono)', fontSize: 11, whiteSpace: 'pre-wrap', wordBreak: 'break-all',
+                   background: 'var(--bg)', padding: 8, borderRadius: 6, maxHeight: 180, overflow: 'auto' },
+  detailLabel:   { fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', marginBottom: 6,
+                   textTransform: 'uppercase' },
 }

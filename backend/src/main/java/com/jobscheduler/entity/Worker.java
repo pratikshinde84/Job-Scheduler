@@ -26,9 +26,6 @@ public class Worker {
     @Column(name = "last_heartbeat_at")
     private OffsetDateTime lastHeartbeatAt;
 
-    /**
-     * Maps to the worker_status column (VARCHAR + CHECK constraint).
-     */
     @Column(name = "status", nullable = false)
     @Enumerated(EnumType.STRING)
     @Builder.Default

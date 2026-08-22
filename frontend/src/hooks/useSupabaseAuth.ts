@@ -9,38 +9,57 @@ interface AuthState {
   loading: boolean
 }
 
+/** Map a Supabase User to our AuthUser shape. */
+function toAuthUser(supaUser: User): AuthUser {
+  const meta = supaUser.user_metadata ?? {}
+  return {
+    id: supaUser.id,
+    email: supaUser.email ?? '',
+    name: (meta.name ?? meta.full_name ?? supaUser.email?.split('@')[0] ?? '') as string,
+    avatarUrl: (meta.avatar_url ?? meta.picture ?? null) as string | null,
+  }
+}
+
 /**
- * Central auth hook. Wraps Supabase session management and exposes:
- *  - session / user  : current session state
- *  - loading         : true while initial session is being resolved
- *  - signInWithGoogle / signInWithGitHub : trigger OAuth flow
- *  - signOut         : clears the session
+ * Central auth hook.
+ *
+ * Why both getSession() AND onAuthStateChange?
+ *
+ * - getSession() gives us the current persisted session synchronously-ish
+ *   and is the source of truth on every page load / refresh.
+ * - onAuthStateChange catches subsequent sign-in / sign-out events that
+ *   happen after the initial load.
+ *
+ * We call getSession() first to set the initial state, then subscribe for
+ * changes. `loading` stays true until getSession() resolves so ProtectedRoute
+ * never flickers to /login on a valid session.
  */
 export function useSupabaseAuth() {
   const [state, setState] = useState<AuthState>({
     session: null,
     user: null,
-    loading: true,
+    loading: true,   // stays true until getSession() resolves
   })
 
-  // Map Supabase User → our AuthUser shape
-  const toAuthUser = (supaUser: User): AuthUser => {
-    const meta = supaUser.user_metadata ?? {}
-    return {
-      id: supaUser.id,
-      email: supaUser.email ?? '',
-      name: (meta.name ?? meta.full_name ?? supaUser.email?.split('@')[0] ?? '') as string,
-      avatarUrl: (meta.avatar_url ?? meta.picture ?? null) as string | null,
-    }
-  }
-
   useEffect(() => {
-    // Subscribe FIRST so we never miss an auth event that fires before
-    // getSession() resolves. onAuthStateChange fires INITIAL_SESSION with
-    // the current session (or null) shortly after mount, which is the
-    // authoritative signal to set loading=false.
+    let mounted = true
+
+    // 1. Resolve persisted session — this is authoritative for initial load
+    supabase.auth.getSession().then(({ data }) => {
+      if (!mounted) return
+      setState({
+        session: data.session,
+        user: data.session?.user ? toAuthUser(data.session.user) : null,
+        loading: false,
+      })
+    })
+
+    // 2. Subscribe for subsequent auth changes (sign-in, sign-out, token refresh)
+    //    Skip INITIAL_SESSION here — getSession() above already handles it.
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      (_event, session) => {
+      (event, session) => {
+        if (event === 'INITIAL_SESSION') return  // handled by getSession()
+        if (!mounted) return
         setState({
           session,
           user: session?.user ? toAuthUser(session.user) : null,
@@ -49,7 +68,10 @@ export function useSupabaseAuth() {
       }
     )
 
-    return () => subscription.unsubscribe()
+    return () => {
+      mounted = false
+      subscription.unsubscribe()
+    }
   }, [])
 
   const signInWithGoogle = useCallback(() =>

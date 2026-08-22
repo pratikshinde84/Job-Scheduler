@@ -17,17 +17,17 @@ public interface WorkerRepository extends JpaRepository<Worker, UUID> {
 
     Optional<Worker> findByName(String name);
 
-    List<Worker> findByStatus(Worker.WorkerStatus status);
+    @Query(value = "SELECT * FROM workers WHERE status = :status", nativeQuery = true)
+    List<Worker> findByStatus(@Param("status") String status);
 
     /**
      * Mark a worker's heartbeat and status in one update.
-     * Uses a native query with explicit cast to satisfy PostgreSQL's worker_status enum.
      */
     @Modifying
     @Query(value = """
             UPDATE workers
             SET last_heartbeat_at = :now,
-                status = CAST(:status AS worker_status)
+                status = :status
             WHERE name = :name
             """, nativeQuery = true)
     int upsertHeartbeat(@Param("name") String name,
@@ -37,10 +37,10 @@ public interface WorkerRepository extends JpaRepository<Worker, UUID> {
     /**
      * Find workers whose heartbeat has gone stale (potential offline detection).
      */
-    @Query("""
-            SELECT w FROM Worker w
-            WHERE w.status = 'active'
-            AND w.lastHeartbeatAt < :threshold
-            """)
+    @Query(value = """
+            SELECT * FROM workers
+            WHERE status = 'active'
+            AND last_heartbeat_at < :threshold
+            """, nativeQuery = true)
     List<Worker> findStaleWorkers(@Param("threshold") OffsetDateTime threshold);
 }

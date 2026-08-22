@@ -5,6 +5,7 @@ import { queuesApi } from '../api/queues'
 import { usePolling } from '../hooks/usePolling'
 import { useSessionReady } from '../hooks/useSessionReady'
 import { findBySlug, toSlug } from '../lib/slug'
+import EnqueueJobModal from '../components/EnqueueJobModal'
 import type { Project, Queue } from '../types'
 
 export default function QueuesPage() {
@@ -19,6 +20,7 @@ export default function QueuesPage() {
   const [creating, setCreating] = useState(false)
   const [form, setForm] = useState({ name: '', concurrencyLimit: 5 })
   const [saving, setSaving] = useState(false)
+  const [enqueueTarget, setEnqueueTarget] = useState<Queue | null>(null)
 
   const load = useCallback(async () => {
     if (!projectName) return
@@ -101,6 +103,7 @@ export default function QueuesPage() {
   )
 
   return (
+    <>
     <div style={styles.page}>
       <header style={styles.header}>
         <div>
@@ -185,6 +188,8 @@ export default function QueuesPage() {
                 <span className={`badge ${q.isPaused ? 'badge-dead' : 'badge-running'}`}>
                   {q.isPaused ? 'paused' : 'active'}
                 </span>
+                <button className="btn-primary" style={{ fontSize: 12 }}
+                  onClick={() => setEnqueueTarget(q)}>+ Enqueue</button>
                 <button className="btn-ghost" style={{ fontSize: 12 }}
                   onClick={() => togglePause(q)}>
                   {q.isPaused ? 'Resume' : 'Pause'}
@@ -197,6 +202,17 @@ export default function QueuesPage() {
         </div>
       )}
     </div>
+
+    {/* Enqueue modal — opens when user clicks "+ Enqueue" on a queue row */}
+    {enqueueTarget && (
+      <EnqueueJobModal
+        lockedQueue={enqueueTarget}
+        lockedProjectId={project?.id}
+        onClose={() => setEnqueueTarget(null)}
+        onSuccess={() => setEnqueueTarget(null)}
+      />
+    )}
+  </>
   )
 }
 
