@@ -135,7 +135,7 @@ public class RateLimitFilter extends OncePerRequestFilter {
         }
         return "default";
     }
-
+    
     /** Respects X-Forwarded-For for proxy/cloud deployments. */
     private String getClientIp(HttpServletRequest request) {
         String forwarded = request.getHeader("X-Forwarded-For");
