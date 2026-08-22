@@ -16,6 +16,7 @@ export default function DashboardPage() {
   const [data, setData] = useState<DashboardData | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [lastRefreshed, setLastRefreshed] = useState<Date | null>(null)
+  const [addingWorker, setAddingWorker] = useState(false)
 
   const fetch = useCallback(async () => {
     try {
@@ -27,6 +28,18 @@ export default function DashboardPage() {
       setError('Failed to load dashboard data.')
     }
   }, [])
+
+  const handleAddWorker = async () => {
+    try {
+      setAddingWorker(true)
+      await dashboardApi.addWorker()
+      await fetch()
+    } catch {
+      setError('Failed to spawn new worker instance.')
+    } finally {
+      setAddingWorker(false)
+    }
+  }
 
   const sessionReady = useSessionReady()
   usePolling(fetch, 5000, sessionReady)
@@ -110,7 +123,19 @@ export default function DashboardPage() {
                 </tbody>
               </table>
             )}
+
+            <div style={{ marginTop: 16, display: 'flex', justifyContent: 'flex-start' }}>
+              <button
+                className="btn btn-primary"
+                onClick={handleAddWorker}
+                disabled={addingWorker}
+                style={{ display: 'flex', alignItems: 'center', gap: 6 }}
+              >
+                {addingWorker ? '⚡ Spawning Worker...' : '+ Add Worker'}
+              </button>
+            </div>
           </section>
+
 
           {/* ── Terminal Execution Log Screen ──────────────────────── */}
           <TerminalLogViewer />
