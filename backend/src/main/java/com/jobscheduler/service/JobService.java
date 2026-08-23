@@ -26,6 +26,7 @@ public class JobService {
     private final JobAttemptRepository attemptRepository;
     private final DeadLetterRepository deadLetterRepository;
     private final ProjectRepository projectRepository;
+    private final AiSummaryService aiSummaryService;
 
     // ── Enqueue ───────────────────────────────────────────────────────────────
 
@@ -209,6 +210,12 @@ public class JobService {
         recordAttempt(job, workerName, startedAt, errorStack);
 
         job.setLastError(errorMessage);
+        try {
+            String summary = aiSummaryService.generateSummary(job, errorMessage, errorStack);
+            job.setFailureSummary(summary);
+        } catch (Exception e) {
+            log.error("Failed to generate AI summary for job {}: {}", jobId, e.getMessage());
+        }
         job.setLockedAt(null);
         job.setLockedBy(null);
 
@@ -226,6 +233,19 @@ public class JobService {
             job.setScheduledAt(job.getNextRetryAt());
             jobRepository.save(job);
         }
+    }
+
+    @Transactional
+    public String generateOrGetAiSummary(UUID jobId) {
+        Job job = get(jobId);
+        if (job.getFailureSummary() != null && !job.getFailureSummary().isBlank()) {
+            return job.getFailureSummary();
+        }
+        String lastErr = job.getLastError();
+        String summary = aiSummaryService.generateSummary(job, lastErr, null);
+        job.setFailureSummary(summary);
+        jobRepository.save(job);
+        return summary;
     }
 
     // ── Manual operations ─────────────────────────────────────────────────────

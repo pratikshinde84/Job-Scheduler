@@ -86,6 +86,9 @@ public class Job {
     @Column(name = "last_error", columnDefinition = "text")
     private String lastError;
 
+    @Column(name = "failure_summary", columnDefinition = "text")
+    private String failureSummary;
+
     /**
      * Stores executor output (e.g. calculation result). Null for jobs with no
      * output.

@@ -31,6 +31,9 @@ export const jobsApi = {
   requeue: (jobId: string) =>
     api.post<Job>(`/jobs/${jobId}/requeue`).then((r) => r.data),
 
+  getAiSummary: (jobId: string) =>
+    api.post<{ summary: string }>(`/jobs/${jobId}/ai-summary`).then((r) => r.data.summary),
+
   bulkEnqueue: (queueId: string, body: {
     payloads: Record<string, unknown>[]
     priority?: number

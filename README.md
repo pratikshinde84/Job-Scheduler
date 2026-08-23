@@ -24,6 +24,8 @@ Think of it as a lightweight in-house alternative to BullMQ or Celery, with a fu
 - **Notification inbox** - in-app messages delivered to users, shown as a slide-in inbox panel with unread badge
 - **PDF upload and extract** - upload a PDF from the browser; Apache PDFBox extracts text server-side
 - **Rate limiting** - sliding-window per-user rate limiting via Upstash Redis
+- **Flexible execution scheduling** - enqueue jobs for immediate execution, delayed (in seconds), or recurring on a custom Cron schedule
+- **AI failure summaries** - automated diagnostic error pattern analysis with root-cause identification and suggested fix steps for failed jobs
 - **Real-time dashboard** - live job status breakdown, worker heartbeats, progress bar
 - **OAuth login** - Google and GitHub sign-in via Supabase Auth
 
@@ -255,9 +257,15 @@ Base URL: `http://localhost:8081`
 
 ### Jobs
 
-**`POST /api/queues/{queueId}/jobs`** - Enqueue a single job.
+**`POST /api/queues/{queueId}/jobs`** - Enqueue a job (Immediate, Delayed, or Recurring via Cron).
 ```json
-{ "payload": { "operation": "SUM", "values": [10, 20, 30] }, "priority": 0, "maxAttempts": 3 }
+{
+  "payload": { "operation": "SUM", "values": [10, 20, 30] },
+  "priority": 0,
+  "scheduledAt": "2026-08-24T00:00:00Z",
+  "cronExpression": "0 0 * * * *",
+  "maxAttempts": 3
+}
 ```
 Response: `201` - full job object with `id`, `status`, `payload`, `result`, etc.
 
@@ -284,6 +292,8 @@ Response: `201` - `{ "enqueued": 2, "queueId": "uuid", "jobIds": ["uuid1", "uuid
 ```json
 [{ "id": 1, "attemptNumber": 0, "workerName": "spring-boot-instance-1", "startedAt": "...", "finishedAt": "...", "errorStack": null }]
 ```
+
+**`POST /api/jobs/{jobId}/ai-summary`** - Generate or retrieve AI diagnostic summary for a failed job. Response: `{ "summary": "..." }`
 
 **`POST /api/jobs/{jobId}/cancel`** - Cancel `pending`/`scheduled` job. Error `409` if running.
 

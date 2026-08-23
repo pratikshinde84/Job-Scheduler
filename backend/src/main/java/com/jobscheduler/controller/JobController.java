@@ -184,6 +184,13 @@ public class JobController {
                 return ResponseEntity.ok(JobResponse.from(jobService.requeueDeadJob(jobId)));
         }
 
+        /** POST /api/jobs/{jobId}/ai-summary */
+        @PostMapping("/api/jobs/{jobId}/ai-summary")
+        public ResponseEntity<Map<String, String>> getAiSummary(@PathVariable UUID jobId) {
+                String summary = jobService.generateOrGetAiSummary(jobId);
+                return ResponseEntity.ok(Map.of("summary", summary));
+        }
+
         // ── Nested response DTO ───────────────────────────────────────────────────
 
         public record AttemptResponse(

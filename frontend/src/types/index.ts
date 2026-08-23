@@ -56,6 +56,7 @@ export interface Job {
   payload: Record<string, unknown>
   retryConfig: RetryConfig | null
   lastError: string | null
+  failureSummary?: string | null
   result: Record<string, unknown> | null
   createdAt: string
   updatedAt: string

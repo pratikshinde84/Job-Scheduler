@@ -21,6 +21,7 @@ public record JobResponse(
         Map<String, Object> payload,
         Map<String, Object> retryConfig,
         String lastError,
+        String failureSummary,
         Map<String, Object> result,
         OffsetDateTime createdAt,
         OffsetDateTime updatedAt) {
@@ -40,6 +41,7 @@ public record JobResponse(
                 j.getPayload(),
                 j.getRetryConfig(),
                 j.getLastError(),
+                j.getFailureSummary(),
                 j.getResult(),
                 j.getCreatedAt(),
                 j.getUpdatedAt());

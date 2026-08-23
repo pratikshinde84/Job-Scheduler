@@ -403,6 +403,11 @@ function JobRow({ job, onCancel, onRequeue }: {
               {/* Job result — adapts per executor type */}
               {job.result && <JobResult result={job.result} />}
 
+              {/* AI Failure Summary Card */}
+              {(job.status === 'failed' || job.status === 'dead' || job.lastError || job.failureSummary) && (
+                <AiFailureSummaryCard job={job} onRequeue={onRequeue} />
+              )}
+
               {job.lastError && (
                 <div>
                   <p style={styles.detailLabel}>Last Error</p>
@@ -425,6 +430,73 @@ function JobRow({ job, onCancel, onRequeue }: {
         </tr>
       )}
     </>
+  )
+}
+
+function AiFailureSummaryCard({ job, onRequeue }: { job: Job; onRequeue: (id: string) => void }) {
+  const [summary, setSummary] = useState<string | null>(job.failureSummary ?? null)
+  const [loading, setLoading] = useState(false)
+
+  const handleGenerate = async () => {
+    setLoading(true)
+    try {
+      const res = await jobsApi.getAiSummary(job.id)
+      setSummary(res)
+    } catch {
+      setSummary('Failed to generate AI summary.')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const activeSummary = summary || job.failureSummary
+
+  return (
+    <div style={{
+      gridColumn: '1 / -1',
+      background: 'linear-gradient(135deg, rgba(99,102,241,0.08) 0%, rgba(239,68,68,0.08) 100%)',
+      border: '1px solid rgba(99,102,241,0.3)',
+      borderRadius: 10,
+      padding: '14px 18px',
+      marginTop: 4,
+      position: 'relative',
+    }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <span style={{ fontSize: 16 }}>🤖</span>
+          <span style={{ fontSize: 12, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--accent)' }}>
+            AI Failure Diagnostic
+          </span>
+          <span style={{ fontSize: 10, background: 'rgba(99,102,241,0.2)', color: 'var(--accent)', padding: '2px 6px', borderRadius: 4, fontWeight: 600 }}>
+            Automated Analysis
+          </span>
+        </div>
+        {!activeSummary && (
+          <button className="btn-ghost" style={{ fontSize: 11, padding: '3px 9px', borderColor: 'var(--accent)', color: 'var(--accent)' }}
+            disabled={loading} onClick={handleGenerate}>
+            {loading ? 'Analyzing…' : '✨ Generate AI Summary'}
+          </button>
+        )}
+      </div>
+
+      {activeSummary ? (
+        <div style={{ fontSize: 12, lineHeight: 1.6, color: 'var(--text)', whiteSpace: 'pre-wrap', fontFamily: 'sans-serif' }}>
+          {activeSummary}
+        </div>
+      ) : (
+        <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
+          Click <strong>Generate AI Summary</strong> to run automated diagnostics on this failure.
+        </div>
+      )}
+
+      {(job.status === 'dead' || job.status === 'failed') && (
+        <div style={{ marginTop: 12, paddingTop: 10, borderTop: '1px solid rgba(255,255,255,0.08)', display: 'flex', justifyContent: 'flex-end' }}>
+          <button className="btn-primary" style={{ fontSize: 11, padding: '4px 12px' }} onClick={() => onRequeue(job.id)}>
+            🔄 Re-queue Job with AI Fix
+          </button>
+        </div>
+      )}
+    </div>
   )
 }
 
