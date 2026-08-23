@@ -1,0 +1,17 @@
+# Maven build output
+target/
+*.jar
+*.war
+*.ear
+*.rar
+
+# Eclipse / IntelliJ / VSCode
+.idea/
+*.iml
+.project
+.classpath
+.settings/
+.vscode/
+
+# Logs
+*.log
