@@ -7,21 +7,18 @@ import com.jobscheduler.repository.QueueRepository;
 import com.jobscheduler.service.JobService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.scheduling.annotation.Async;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
-import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.Semaphore;
 import java.util.function.Function;
 import java.util.stream.Collectors;
-
-import java.util.concurrent.CopyOnWriteArrayList;
 
 /**
  * Polls all active queues every 2 seconds across multiple worker identities
@@ -38,6 +35,7 @@ public class JobPoller {
 
     private final QueueRepository queueRepository;
     private final JobService jobService;
+    private final JobRunner jobRunner;
     private final List<String> workerNames = new CopyOnWriteArrayList<>();
 
     /** Executor registry: queueName (lower-case) → executor bean */
@@ -48,12 +46,14 @@ public class JobPoller {
 
     public JobPoller(QueueRepository queueRepository,
             JobService jobService,
+            JobRunner jobRunner,
             @Value("${worker.name-prefix:worker}") String namePrefix,
             @Value("${worker.count:4}") int workerCount,
             List<JobExecutor> executors) {
 
         this.queueRepository = queueRepository;
         this.jobService = jobService;
+        this.jobRunner = jobRunner;
 
         for (int i = 1; i <= workerCount; i++) {
             this.workerNames.add(namePrefix + "-" + i);
@@ -91,73 +91,26 @@ public class JobPoller {
                     id -> new Semaphore(queue.getConcurrencyLimit(), true));
 
             for (String currentWorker : workerNames) {
-                if (sem.availablePermits() <= 0)
+                if (sem.availablePermits() <= 0) {
                     break;
+                }
 
-                // Claim 1 job per worker per pass for fair round-robin distribution across all
-                // workers
-                List<Job> claimed = jobService.claimJobs(queue.getId(), currentWorker, 1);
-                for (Job job : claimed) {
-                    if (sem.tryAcquire()) {
+                // Acquire semaphore permit BEFORE claiming job from database
+                if (sem.tryAcquire()) {
+                    List<Job> claimed = jobService.claimJobs(queue.getId(), currentWorker, 1);
+                    if (claimed.isEmpty()) {
+                        // No job was available to claim; release permit immediately
+                        sem.release();
+                    } else {
+                        Job job = claimed.get(0);
                         String resolvedQueueName = queue.getName();
-                        executeAsync(job, resolvedQueueName, currentWorker, sem);
+                        JobExecutor executor = executorRegistry.get(resolvedQueueName.toLowerCase());
+
+                        // Dispatch to JobRunner bean for true @Async parallel execution
+                        jobRunner.executeAsync(job, resolvedQueueName, currentWorker, sem, executor);
                     }
                 }
             }
         }
-    }
-
-    // ── Async execution ───────────────────────────────────────────────────────
-
-    @Async
-    public void executeAsync(Job job, String queueName, String workerIdentity, Semaphore sem) {
-        OffsetDateTime startedAt = OffsetDateTime.now();
-        try {
-            jobService.markRunning(job.getId(), workerIdentity);
-            log.info("[{}] Starting job {} on queue '{}'", workerIdentity, job.getId(), queueName);
-
-            dispatch(job, queueName, workerIdentity);
-
-            jobService.completeJob(job.getId(), workerIdentity, startedAt);
-            log.info("[{}] Completed job {}", workerIdentity, job.getId());
-
-        } catch (Exception ex) {
-            log.error("[{}] Job {} failed: {}", workerIdentity, job.getId(), ex.getMessage(), ex);
-            jobService.failJob(
-                    job.getId(), workerIdentity, startedAt,
-                    ex.getMessage(), stackTraceToString(ex));
-        } finally {
-            sem.release();
-        }
-    }
-
-    // ── Routing ───────────────────────────────────────────────────────────────
-
-    private void dispatch(Job job, String queueName, String workerIdentity) throws Exception {
-        JobExecutor executor = executorRegistry.get(queueName.toLowerCase());
-
-        if (executor != null) {
-            log.debug("[{}] Dispatching job {} to {}", workerIdentity, job.getId(),
-                    executor.getClass().getSimpleName());
-            executor.execute(job);
-        } else {
-            log.warn("[{}] No executor registered for queue '{}' — running fallback stub",
-                    workerIdentity, queueName);
-            fallbackStub(job, workerIdentity);
-        }
-    }
-
-    private void fallbackStub(Job job, String workerIdentity) throws InterruptedException {
-        long duration = 200 + (long) (Math.random() * 400);
-        log.debug("[{}] Fallback stub: sleeping {} ms for job {}", workerIdentity, duration, job.getId());
-        Thread.sleep(duration);
-    }
-
-    // ── Utilities ─────────────────────────────────────────────────────────────
-
-    private String stackTraceToString(Throwable t) {
-        java.io.StringWriter sw = new java.io.StringWriter();
-        t.printStackTrace(new java.io.PrintWriter(sw));
-        return sw.toString();
     }
 }

@@ -29,6 +29,9 @@ class JobPollerTest {
     private JobService jobService;
 
     @Mock
+    private JobRunner jobRunner;
+
+    @Mock
     private JobExecutor jobExecutor;
 
     private JobPoller jobPoller;
@@ -36,7 +39,7 @@ class JobPollerTest {
     @BeforeEach
     void setUp() {
         lenient().when(jobExecutor.queueName()).thenReturn("test-queue");
-        jobPoller = new JobPoller(queueRepository, jobService, "worker", 4, List.of(jobExecutor));
+        jobPoller = new JobPoller(queueRepository, jobService, jobRunner, "worker", 4, List.of(jobExecutor));
     }
 
     @Test
@@ -82,6 +85,6 @@ class JobPollerTest {
         jobPoller.poll();
 
         verify(jobService, atLeastOnce()).claimJobs(eq(queueId), anyString(), eq(1));
-
+        verify(jobRunner, atLeastOnce()).executeAsync(eq(job), eq("test-queue"), anyString(), any(), eq(jobExecutor));
     }
 }

@@ -13,7 +13,12 @@ import java.util.UUID;
 @Repository
 public interface QueueRepository extends JpaRepository<Queue, UUID> {
 
-    List<Queue> findByProjectId(UUID projectId);
+    @Query("""
+            SELECT q FROM Queue q
+            WHERE q.project.id = :projectId
+            ORDER BY CASE WHEN LOWER(q.name) LIKE '%email%' THEN 1 ELSE 0 END ASC, q.name ASC
+            """)
+    List<Queue> findByProjectId(@Param("projectId") UUID projectId);
 
     Optional<Queue> findByIdAndProjectId(UUID id, UUID projectId);
 

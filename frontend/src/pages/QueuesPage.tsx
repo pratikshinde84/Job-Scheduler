@@ -9,6 +9,16 @@ import EnqueueJobModal from '../components/EnqueueJobModal'
 import BulkEnqueueModal from '../components/BulkEnqueueModal'
 import type { Project, Queue } from '../types'
 
+function sortQueuesWithEmailLast(list: Queue[]): Queue[] {
+  return [...list].sort((a, b) => {
+    const isEmailA = a.name.toLowerCase().includes('email')
+    const isEmailB = b.name.toLowerCase().includes('email')
+    if (isEmailA && !isEmailB) return 1
+    if (!isEmailA && isEmailB) return -1
+    return 0
+  })
+}
+
 export default function QueuesPage() {
   // :projectName is the slug, e.g. "my-app"
   const { projectName } = useParams<{ projectName: string }>()
@@ -36,7 +46,8 @@ export default function QueuesPage() {
         return
       }
       setProject(matched)
-      setQueues(await queuesApi.list(matched.id))
+      const fetchedQueues = await queuesApi.list(matched.id)
+      setQueues(sortQueuesWithEmailLast(fetchedQueues))
       setError(null)
     } catch {
       setError('Failed to load queues.')
@@ -57,7 +68,7 @@ export default function QueuesPage() {
         name: form.name.trim(),
         concurrencyLimit: form.concurrencyLimit,
       })
-      setQueues(prev => [...prev, q])
+      setQueues(prev => sortQueuesWithEmailLast([...prev, q]))
       setForm({ name: '', concurrencyLimit: 5 })
       setCreating(false)
     } catch (err: unknown) {
