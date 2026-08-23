@@ -1,6 +1,6 @@
 # Dependencies
 node_modules/
-.pnpm-store/
+.pnpm-store/   
 frontend/node_modules/
 
 # Environment and Secret files
