@@ -1,5 +1,7 @@
 ﻿# JobScheduler
 
+🚀 **Live Application**: [https://job-scheduler-app-three.vercel.app/](https://job-scheduler-app-three.vercel.app/)
+
 A full-stack distributed job queue manager built with Spring Boot and React. Create projects, define queues, enqueue jobs with custom payloads, and let background workers process them with retries, dead-letter handling, rate limiting, and a real-time dashboard.
 
 ---
@@ -47,6 +49,8 @@ Think of it as a lightweight in-house alternative to BullMQ or Celery, with a fu
 | HTTP client | Axios |
 | Auth client | Supabase JS SDK |
 | Build tools | Maven (backend), npm (frontend) |
+| Version control | Git, GitHub |
+| Deployment | Render (backend), Vercel (frontend) |
 
 ---
 
