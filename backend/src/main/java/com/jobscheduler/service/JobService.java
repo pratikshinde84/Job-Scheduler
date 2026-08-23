@@ -7,6 +7,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.scheduling.support.CronExpression;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -30,13 +31,23 @@ public class JobService {
 
     @Transactional
     public Job enqueue(UUID queueId, Map<String, Object> payload,
-                       int priority, OffsetDateTime scheduledAt,
-                       int maxAttempts, Map<String, Object> retryConfig) {
+            int priority, String cronExpression, OffsetDateTime scheduledAt,
+            int maxAttempts, Map<String, Object> retryConfig) {
 
         Queue queue = queueRepository.findById(queueId)
                 .orElseThrow(() -> new EntityNotFoundException("Queue not found: " + queueId));
 
-        Job.JobStatus initialStatus = scheduledAt != null && scheduledAt.isAfter(OffsetDateTime.now())
+        OffsetDateTime targetScheduledAt = scheduledAt;
+        if (cronExpression != null && !cronExpression.isBlank() && targetScheduledAt == null) {
+            try {
+                CronExpression cron = CronExpression.parse(cronExpression);
+                targetScheduledAt = cron.next(OffsetDateTime.now());
+            } catch (Exception e) {
+                log.error("Invalid cron expression: {}", cronExpression, e);
+            }
+        }
+
+        Job.JobStatus initialStatus = targetScheduledAt != null && targetScheduledAt.isAfter(OffsetDateTime.now())
                 ? Job.JobStatus.scheduled
                 : Job.JobStatus.pending;
 
@@ -44,8 +55,9 @@ public class JobService {
                 .queue(queue)
                 .payload(payload)
                 .priority((short) priority)
+                .cronExpression(cronExpression)
                 .status(initialStatus)
-                .scheduledAt(scheduledAt != null ? scheduledAt : OffsetDateTime.now())
+                .scheduledAt(targetScheduledAt != null ? targetScheduledAt : OffsetDateTime.now())
                 .maxAttempts(maxAttempts)
                 .retryConfig(retryConfig)
                 .build();
@@ -53,19 +65,27 @@ public class JobService {
         return jobRepository.save(job);
     }
 
+    @Transactional
+    public Job enqueue(UUID queueId, Map<String, Object> payload,
+            int priority, OffsetDateTime scheduledAt,
+            int maxAttempts, Map<String, Object> retryConfig) {
+        return enqueue(queueId, payload, priority, null, scheduledAt, maxAttempts, retryConfig);
+    }
+
     /**
      * Bulk enqueue — insert all jobs in a single transaction.
-     * @param queueId    target queue
-     * @param payloads   list of payload maps — one job per element
-     * @param priority   shared priority applied to every job
+     * 
+     * @param queueId     target queue
+     * @param payloads    list of payload maps — one job per element
+     * @param priority    shared priority applied to every job
      * @param maxAttempts shared maxAttempts applied to every job
      * @return list of saved Job entities
      */
     @Transactional
     public List<Job> bulkEnqueue(UUID queueId,
-                                  List<Map<String, Object>> payloads,
-                                  int priority,
-                                  int maxAttempts) {
+            List<Map<String, Object>> payloads,
+            int priority,
+            int maxAttempts) {
 
         if (payloads == null || payloads.isEmpty()) {
             throw new IllegalArgumentException("Payload array must not be empty");
@@ -125,7 +145,8 @@ public class JobService {
     @Transactional
     public List<Job> claimJobs(UUID queueId, String workerName, int limit) {
         List<UUID> claimedIds = jobRepository.claimJobs(queueId, workerName, limit);
-        if (claimedIds.isEmpty()) return List.of();
+        if (claimedIds.isEmpty())
+            return List.of();
         return jobRepository.findAllById(claimedIds);
     }
 
@@ -150,6 +171,22 @@ public class JobService {
         job.setLockedAt(null);
         job.setLockedBy(null);
         jobRepository.save(job);
+
+        // If this is a recurring cron job, schedule its next occurrence automatically
+        if (job.getCronExpression() != null && !job.getCronExpression().isBlank()) {
+            try {
+                CronExpression cron = CronExpression.parse(job.getCronExpression());
+                OffsetDateTime nextRun = cron.next(OffsetDateTime.now());
+                if (nextRun != null) {
+                    enqueue(job.getQueue().getId(), job.getPayload(), job.getPriority(),
+                            job.getCronExpression(), nextRun, job.getMaxAttempts(), job.getRetryConfig());
+                    log.info("Auto-scheduled next occurrence of recurring cron job for {}", nextRun);
+                }
+            } catch (Exception e) {
+                log.error("Failed to calculate next run for cron expression {}: {}",
+                        job.getCronExpression(), e.getMessage());
+            }
+        }
     }
 
     // ── Result storage (called by executors before completeJob) ──────────────
@@ -165,7 +202,7 @@ public class JobService {
 
     @Transactional
     public void failJob(UUID jobId, String workerName, OffsetDateTime startedAt,
-                        String errorMessage, String errorStack) {
+            String errorMessage, String errorStack) {
         Job job = jobRepository.findById(jobId)
                 .orElseThrow(() -> new EntityNotFoundException("Job not found: " + jobId));
 
@@ -232,7 +269,7 @@ public class JobService {
     // ── Internal helpers ──────────────────────────────────────────────────────
 
     private void recordAttempt(Job job, String workerName,
-                                OffsetDateTime startedAt, String errorStack) {
+            OffsetDateTime startedAt, String errorStack) {
         JobAttempt attempt = JobAttempt.builder()
                 .job(job)
                 .attemptNumber(job.getAttemptCount())
@@ -282,7 +319,7 @@ public class JobService {
             case "linear" -> (long) baseDelay * attempt;
             default -> // exponential with jitter
                 (long) (baseDelay * Math.pow(2, attempt - 1))
-                    + (long) (Math.random() * baseDelay);
+                        + (long) (Math.random() * baseDelay);
         };
 
         // Cap at 1 hour

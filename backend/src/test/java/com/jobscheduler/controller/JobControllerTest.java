@@ -43,9 +43,9 @@ class JobControllerTest {
         Job job = Job.builder().id(UUID.randomUUID()).queue(queue).build();
 
         when(queueRepository.findById(queueId)).thenReturn(Optional.of(queue));
-        when(jobService.enqueue(any(), any(), anyInt(), any(), anyInt(), any())).thenReturn(job);
+        when(jobService.enqueue(any(), any(), anyInt(), any(), any(), anyInt(), any())).thenReturn(job);
 
-        JobRequest req = new JobRequest(Map.of("key", "val"), 1, null, 3, null, 10);
+        JobRequest req = new JobRequest(Map.of("key", "val"), 1, null, null, 3, null, 10);
         var response = jobController.enqueue(queueId, req);
 
         assertEquals(HttpStatus.CREATED, response.getStatusCode());
@@ -60,9 +60,9 @@ class JobControllerTest {
         Job job = Job.builder().id(UUID.randomUUID()).queue(queue).build();
 
         when(queueRepository.findById(queueId)).thenReturn(Optional.of(queue));
-        when(jobService.enqueue(any(), any(), anyInt(), any(), anyInt(), any())).thenReturn(job);
+        when(jobService.enqueue(any(), any(), anyInt(), any(), any(), anyInt(), any())).thenReturn(job);
 
-        JobRequest req = new JobRequest(Map.of("key", "val"), 0, null, 3, null, null);
+        JobRequest req = new JobRequest(Map.of("key", "val"), 0, null, null, 3, null, null);
         var response = jobController.enqueue(queueId, req);
 
         assertEquals(HttpStatus.CREATED, response.getStatusCode());

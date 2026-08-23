@@ -53,6 +53,7 @@ public class JobController {
                                 queueId,
                                 req.payload(),
                                 req.priority(),
+                                req.cronExpression(),
                                 req.scheduledAt(),
                                 req.maxAttempts() > 0 ? req.maxAttempts() : 3,
                                 req.retryConfig());

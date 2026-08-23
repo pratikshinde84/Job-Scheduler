@@ -18,6 +18,7 @@ export const jobsApi = {
     payload: Record<string, unknown>
     priority?: number
     scheduledAt?: string
+    cronExpression?: string
     maxAttempts?: number
     concurrency?: number
     retryConfig?: RetryConfig

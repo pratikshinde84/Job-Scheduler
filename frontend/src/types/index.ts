@@ -47,6 +47,7 @@ export interface Job {
   status: JobStatus
   priority: number
   scheduledAt: string
+  cronExpression?: string | null
   nextRetryAt: string | null
   lockedAt: string | null
   lockedBy: string | null

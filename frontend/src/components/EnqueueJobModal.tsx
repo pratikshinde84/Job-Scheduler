@@ -203,6 +203,11 @@ export default function EnqueueJobModal({ lockedQueue, lockedProjectId, onClose,
   const [submitting, setSubmitting]   = useState(false)
   const [submitError, setSubmitError] = useState<string | null>(null)
 
+  // Scheduling options: immediate | delayed | cron
+  const [scheduleMode, setScheduleMode]     = useState<'immediate' | 'delayed' | 'cron'>('immediate')
+  const [delaySeconds, setDelaySeconds]     = useState<number>(30)
+  const [cronExpression, setCronExpression] = useState<string>('0 */5 * * * ?')
+
   // PDF upload state
   const [, setPdfFile]                = useState<File | null>(null)
 
@@ -344,9 +349,27 @@ export default function EnqueueJobModal({ lockedQueue, lockedProjectId, onClose,
     setSubmitError(null); setJsonError(null)
     const payload = buildPayload()
     if (!payload) return
+
+    let scheduledAt: string | undefined = undefined
+    let cronExprToSend: string | undefined = undefined
+
+    if (scheduleMode === 'delayed') {
+      const future = new Date(Date.now() + (delaySeconds || 0) * 1000)
+      scheduledAt = future.toISOString()
+    } else if (scheduleMode === 'cron') {
+      cronExprToSend = cronExpression
+    }
+
     setSubmitting(true)
     try {
-      await jobsApi.enqueue(selectedQueue.id, { payload, maxAttempts, priority, concurrency })
+      await jobsApi.enqueue(selectedQueue.id, {
+        payload,
+        maxAttempts,
+        priority,
+        concurrency,
+        scheduledAt,
+        cronExpression: cronExprToSend,
+      })
       onSuccess(); onClose()
     } catch {
       setSubmitError('Failed to enqueue job. Check that the queue is active.')
@@ -520,7 +543,7 @@ export default function EnqueueJobModal({ lockedQueue, lockedProjectId, onClose,
 
         {showSchema && renderSchema()}
 
-        <form onSubmit={handleSubmit}>
+        <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden', minHeight: 0 }}>
           <div style={s.modalBody}>
 
             {/* Project selector */}
@@ -583,6 +606,67 @@ export default function EnqueueJobModal({ lockedQueue, lockedProjectId, onClose,
                       {jsonError && <p style={s.errorText}>{jsonError}</p>}
                     </>
                 }
+              </div>
+            )}
+
+            {selectedQueue && (
+              <div style={s.section}>
+                <div style={s.sectionHeader}>
+                  <span style={s.sectionTitle}>Execution Schedule</span>
+                </div>
+                <div style={{ display: 'flex', gap: 16, marginBottom: 12, flexWrap: 'wrap' }}>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer', fontSize: 13, color: 'var(--text)' }}>
+                    <input type="radio" name="scheduleMode" value="immediate"
+                      checked={scheduleMode === 'immediate'}
+                      onChange={() => setScheduleMode('immediate')} />
+                    ⚡ Immediate
+                  </label>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer', fontSize: 13, color: 'var(--text)' }}>
+                    <input type="radio" name="scheduleMode" value="delayed"
+                      checked={scheduleMode === 'delayed'}
+                      onChange={() => setScheduleMode('delayed')} />
+                    ⏱️ After some time (Seconds)
+                  </label>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer', fontSize: 13, color: 'var(--text)' }}>
+                    <input type="radio" name="scheduleMode" value="cron"
+                      checked={scheduleMode === 'cron'}
+                      onChange={() => setScheduleMode('cron')} />
+                    🔄 Recurring (Cron)
+                  </label>
+                </div>
+
+                {scheduleMode === 'delayed' && (
+                  <div style={s.fieldGroup}>
+                    <label style={s.fieldLabel}>Delay (Seconds) <span style={s.schemaTypePill}>1–86400</span></label>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <input type="number" min={1} max={86400} value={delaySeconds}
+                        onChange={e => setDelaySeconds(Number(e.target.value))}
+                        style={{ ...s.input, width: 140 }} />
+                      <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>seconds from now</span>
+                    </div>
+                    <p style={s.fieldHint}>Job will execute in ~{delaySeconds || 0}s</p>
+                  </div>
+                )}
+
+                {scheduleMode === 'cron' && (
+                  <div style={s.fieldGroup}>
+                    <label style={s.fieldLabel}>Cron Schedule</label>
+                    <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
+                      <select style={{ ...s.select, flex: 1 }}
+                        onChange={e => { if (e.target.value) setCronExpression(e.target.value) }}>
+                        <option value="0 */5 * * * ?">Every 5 minutes (0 */5 * * * ?)</option>
+                        <option value="0 */1 * * * ?">Every 1 minute (0 */1 * * * ?)</option>
+                        <option value="0 0 * * * ?">Every hour (0 0 * * * ?)</option>
+                        <option value="0 0 0 * * ?">Every day at midnight (0 0 0 * * ?)</option>
+                      </select>
+                    </div>
+                    <input type="text" value={cronExpression}
+                      onChange={e => setCronExpression(e.target.value)}
+                      placeholder="e.g. 0 */5 * * * ?"
+                      style={s.input} />
+                    <p style={s.fieldHint}>Spring Cron format: sec min hr day-of-month month day-of-week</p>
+                  </div>
+                )}
               </div>
             )}
 

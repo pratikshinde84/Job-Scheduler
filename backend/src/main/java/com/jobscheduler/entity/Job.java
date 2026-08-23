@@ -47,6 +47,9 @@ public class Job {
     @Builder.Default
     private OffsetDateTime scheduledAt = OffsetDateTime.now();
 
+    @Column(name = "cron_expression")
+    private String cronExpression;
+
     @Column(name = "next_retry_at")
     private OffsetDateTime nextRetryAt;
 
@@ -83,7 +86,10 @@ public class Job {
     @Column(name = "last_error", columnDefinition = "text")
     private String lastError;
 
-    /** Stores executor output (e.g. calculation result). Null for jobs with no output. */
+    /**
+     * Stores executor output (e.g. calculation result). Null for jobs with no
+     * output.
+     */
     @Type(JsonBinaryType.class)
     @Column(name = "result", columnDefinition = "jsonb")
     private Map<String, Object> result;

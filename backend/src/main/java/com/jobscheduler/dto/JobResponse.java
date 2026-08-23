@@ -12,6 +12,7 @@ public record JobResponse(
         String status,
         int priority,
         OffsetDateTime scheduledAt,
+        String cronExpression,
         OffsetDateTime nextRetryAt,
         OffsetDateTime lockedAt,
         String lockedBy,
@@ -22,8 +23,7 @@ public record JobResponse(
         String lastError,
         Map<String, Object> result,
         OffsetDateTime createdAt,
-        OffsetDateTime updatedAt
-) {
+        OffsetDateTime updatedAt) {
     public static JobResponse from(Job j) {
         return new JobResponse(
                 j.getId(),
@@ -31,6 +31,7 @@ public record JobResponse(
                 j.getStatus().name(),
                 j.getPriority(),
                 j.getScheduledAt(),
+                j.getCronExpression(),
                 j.getNextRetryAt(),
                 j.getLockedAt(),
                 j.getLockedBy(),
@@ -41,7 +42,6 @@ public record JobResponse(
                 j.getLastError(),
                 j.getResult(),
                 j.getCreatedAt(),
-                j.getUpdatedAt()
-        );
+                j.getUpdatedAt());
     }
 }
